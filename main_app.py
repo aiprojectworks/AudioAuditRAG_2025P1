@@ -19,6 +19,7 @@ import streamlit as st
 # import gc 
 import torch
 import os
+from dotenv import load_dotenv
 from datetime import datetime
 #LLM import
 # from langchain.embeddings import LlamaCppEmbeddings
@@ -83,12 +84,16 @@ class KillableThread(threading.Thread):
     def stopped(self):
         return self._stop_event.is_set()
 
+# Load .env variables
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 st.set_page_config(page_title="IPPFA Trancribe & Audit",
                             page_icon=":books:")
-groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+groq_client = Groq(api_key=GROQ_API_KEY)
 # deepgram = DeepgramClient(st.secrets["DEEPGRAM_API_KEY"])
-client = OpenAI(api_key=st.secrets["API_KEY"])
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def is_admin(username: str) -> bool:
     """Check if user has admin role"""
