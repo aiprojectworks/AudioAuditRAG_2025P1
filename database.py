@@ -7,12 +7,12 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    role = Column(String, nullable=False, default='user')
+    username = Column(String(50), unique=True, nullable=False)
+    password = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default='user')
 
 
-engine = create_engine('sqlite:///users.db')  # SQLite database
+engine = create_engine("mysql+pymysql://audioaudit_user:audioauditrag@localhost/audio_audit_rag")  # MySQL database
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 
