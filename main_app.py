@@ -187,6 +187,11 @@ def get_all_users() -> list:
     finally:
         session.close()
 
+def hash_password(password):
+    # Salt the password before hashing it
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_password.decode('utf-8')
 
 def change_password(username: str, new_password: str) -> Tuple[bool, str]:
     """Change a user's password"""
@@ -194,7 +199,7 @@ def change_password(username: str, new_password: str) -> Tuple[bool, str]:
         session = Session()
         user = session.query(User).filter_by(username=username).first()
         if user:
-            user.password = new_password
+            user.password = hash_password(new_password)
             session.commit()
             return True, "Password changed successfully"
         return False, "User not found"
@@ -241,7 +246,8 @@ def admin_interface():
     
     if st.button("Add User"):
         if new_username and new_password:
-            success, message = add_user(new_username, new_password, new_role)
+            hashed_password = hash_password(new_password)
+            success, message = add_user(new_username, hashed_password, new_role)
             if success:
                 st.success(message)
                 create_log_entry(f"Admin Action: Added new user - {new_username}")
@@ -258,9 +264,9 @@ def admin_interface():
     if users:
         for user in users:
             with st.expander(f"User: {user['username']} ({user['role']})"):
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
+                with st.container():
+                    # Row 1: Change Password
+                    st.subheader("Change Password")
                     new_pass = st.text_input("New Password", type="password", key=f"pass_{user['username']}")
                     if st.button("Change Password", key=f"btn_pass_{user['username']}"):
                         if new_pass:
@@ -270,11 +276,12 @@ def admin_interface():
                                 create_log_entry(f"Admin Action: Changed password for user - {user['username']}")
                             else:
                                 st.error(message)
-                
-                with col2:
+                    
+                    # Row 2: Change Role
+                    st.subheader("Change Role")
                     new_role = st.selectbox("New Role", ["user", "admin"], 
-                                          index=0 if user['role']=="user" else 1,
-                                          key=f"role_{user['username']}")
+                                            index=0 if user['role']=="user" else 1,
+                                            key=f"role_{user['username']}")
                     if st.button("Change Role", key=f"btn_role_{user['username']}"):
                         success, message = change_role(user['username'], new_role)
                         if success:
@@ -282,8 +289,9 @@ def admin_interface():
                             create_log_entry(f"Admin Action: Changed role for user - {user['username']} to {new_role}")
                         else:
                             st.error(message)
-                
-                with col3:
+
+                    # Row 3: Delete User
+                    st.subheader("Delete User")
                     if st.button("Delete User", key=f"btn_del_{user['username']}"):
                         success, message = delete_user(user['username'])
                         if success:
