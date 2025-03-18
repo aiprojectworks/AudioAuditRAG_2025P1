@@ -1,3 +1,5 @@
 .venv
 .env
 admin/*
+logfile.csv
+logfile.txt
