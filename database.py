@@ -13,7 +13,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default='user')
 
 
-engine = create_engine("mysql+pymysql://audioaudit_user:audioauditrag@localhost/audio_audit_rag")  # MySQL database
+engine = create_engine("mysql+pymysql://audio_user:audioauditrag@localhost/audio_audit_rag")  # MySQL database
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 

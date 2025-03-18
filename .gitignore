@@ -1,2 +1,5 @@
 .venv
 .env
+logfile.csv
+logfile.txt
+logfile

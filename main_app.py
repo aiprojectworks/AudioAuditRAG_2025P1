@@ -37,7 +37,7 @@ from nltk.tree import Tree
 # from streamlit.components.v1 import html
 # import openai
 from openai import OpenAI
-from mutagen.mp3 import MP3
+from mutagen.mp3 import MP3, HeaderNotFoundError
 from mutagen.id3 import ID3, ID3NoHeaderError
 from pydub import AudioSegment
 import zipfile
@@ -461,28 +461,44 @@ def login_page():
 
 def save_audio_file(audio_bytes, name):
     try:
-        if name.lower().endswith(".wav") or name.lower().endswith(".mp3"):
-            username = st.session_state["username"]
+        if not audio_bytes:
+            print(f"Error: No data in {name}")
+            return None
 
+        if name.lower().endswith(".wav") or name.lower().endswith(".mp3"):
+            username = st.session_state.get("username", "default_user")
             user_folder = os.path.join(".", username)
             os.makedirs(user_folder, exist_ok=True)
 
             name = os.path.basename(name)
-            base_name, ext = os.path.splitext(name)  # Split name and extension
+            base_name, ext = os.path.splitext(name)  
+            short_name = base_name[:20]  
+            new_file_name = os.path.join(user_folder, f"{short_name}{ext}")
 
-            new_file_name = os.path.join(user_folder, f"{base_name}{ext}")
-
-            # Check if file exists, and increment counter if needed
+            # Ensure unique file name
             counter = 1
             while os.path.exists(new_file_name):
                 new_file_name = os.path.join(user_folder, f"{base_name}_{counter}{ext}")
                 counter += 1
 
+            # Save file
             with open(new_file_name, "wb") as f:
                 f.write(audio_bytes)
 
-            print(f"File saved successfully: {new_file_name}")
-            return new_file_name  # Ensure you return the file name
+            # Ensure file is actually written
+            time.sleep(1)  
+            full_path = os.path.abspath(new_file_name)
+
+            if os.path.exists(full_path):  
+                print(f"✅ File successfully saved at: {full_path}")
+                return full_path  
+            else:
+                print(f"❌ File not found after writing: {full_path}")
+                return None
+
+    except Exception as e:
+        print(f"❌ Failed to save file: {e}")
+        return None
         
     except Exception as e:
         print(f"Failed to save file: {e}")
@@ -1443,30 +1459,32 @@ def log_selection():
         create_log_entry("Method Chosen: Folder Upload")
 
 def is_valid_mp3(file_path):
-    # Check if file exists
-    if not os.path.isfile(file_path):
-        print("File does not exist.")
+    """Ensure the file exists and is a valid MP3"""
+    file_path = os.path.abspath(file_path)  
+
+    # Retry mechanism for file recognition
+    retry_attempts = 3
+    for _ in range(retry_attempts):
+        if os.path.exists(file_path):
+            break
+        time.sleep(1)  # Wait before retrying
+    else:
+        print(f"❌ File still not found after retries: {file_path}")
         return False
 
     try:
-        # Check the file using mutagen
-        audio = MP3(file_path, ID3=ID3)
-        
-        # Check for basic properties
-        if audio.info.length <= 0:  # Length should be greater than 0
-            print("File is invalid: Length is zero or negative.")
+        audio = MP3(file_path)
+        if audio.info.length <= 0:  
+            print("❌ Invalid MP3: length is zero.")
             return False
         
-        # You can check additional metadata if needed
-        print("File is valid MP3 with duration:", audio.info.length)
-        
-        # Optional: Check if the file can be loaded with pydub
-        AudioSegment.from_file(file_path)  # This will raise an exception if the file is not valid
-        
+        print(f"✅ Valid MP3 with duration: {audio.info.length} seconds")
         return True
-    except (ID3NoHeaderError, Exception) as e:
-        print(f"Invalid MP3 file: {e}")
-        # create_log_entry(f"Error: Invalid MP3 file: {e}")
+    except HeaderNotFoundError:
+        print(f"❌ {file_path} has no valid MP3 headers")
+        return False
+    except Exception as e:
+        print(f"❌ Invalid MP3 file: {e}")
         return False
     
 
@@ -1579,6 +1597,7 @@ def main():
                         type=["wav", "mp3"], 
                         accept_multiple_files=True
                     )
+                    st.write("Uploaded Files:", uploaded_files)
                     # # Create a set to track unique filenames
                     # unique_filenames = set()
 
@@ -1638,7 +1657,25 @@ def main():
                                     st.error(f"Error deleting file {file_name}: {e}")
                                     create_log_entry(f"Error deleting file {file_name}: {e}")                    
 
+                        if uploaded_files:
+                            for file in uploaded_files:
+                                try:
+                                    audio_content = file.read()
+                                    saved_path = save_audio_file(audio_content, file.name)
 
+                                    if saved_path and os.path.exists(saved_path):  
+                                        print(f"✅ File saved at: {saved_path}")
+                                        
+                                        if is_valid_mp3(saved_path):
+                                            st.session_state.audio_files.append(saved_path)
+                                            print(f"✅ Added to session state: {saved_path}")
+                                        else:
+                                            st.error(f"❌ {saved_path} is an Invalid MP3 or WAV File")
+                                    else:
+                                        st.error("❌ Failed to save uploaded file.")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading audio file: {e}")
+                                    print(f"❌ Error loading audio file: {e}")
 
                         for file_name in added_files:
                             create_log_entry(f"Action: File Uploaded - {file_name}")
@@ -1648,12 +1685,13 @@ def main():
                             try:
                                 audio_content = file.read()
                                 saved_path = save_audio_file(audio_content, file_name)
-                                if is_valid_mp3(saved_path):
-                                    st.session_state.audio_files.append(saved_path)
-                                    st.session_state.file_change_detected = True
+                                if saved_path and os.path.exists(saved_path):  # Ensure the file is actually saved
+                                    if is_valid_mp3(saved_path):
+                                        st.session_state.audio_files.append(saved_path)
+                                    else:
+                                        st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                 else:
-                                    st.error(f"{saved_path[2:]} is an Invalid MP3 or WAV File")
-                                    create_log_entry(f"Error: {saved_path[2:]} is an Invalid MP3 or WAV File")
+                                    st.error("Failed to save the uploaded file.")
                             except Exception as e:
                                 st.error(f"Error loading audio file: {e}")
                                 create_log_entry(f"Error loading audio file: {e}")  
@@ -1749,6 +1787,7 @@ def main():
                         st.write(audio_files)
                         # print(audio_files)
 
+                st.write("Audio files in session state:", st.session_state.audio_files)
                 # Submit button
                 submit = st.button("Submit", use_container_width=True)
 

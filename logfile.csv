@@ -3,3 +3,59 @@ timestamp,event_description
 2025-03-18 13:03:11,Error: admin\20240327_164620_6591277024_6568714238_3d46a7c8-616c-4ab6-9c0a-ba01675f534d_99b08a0e-8c77-4fb2-8e85-e3fb5a8db288.mp3 is an Invalid MP3 or WAV File
 2025-03-18 13:07:58,Service Request: Fail (No Files Uploaded)
 2025-03-18 13:08:06,Service Request: Fail (No Files Uploaded)
+2025-03-18 13:22:36,Action: File Uploaded - test1.mp3
+2025-03-18 13:22:36,Error: admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 13:30:24,Action: File Uploaded - test1.mp3
+2025-03-18 13:30:25,Error: admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 13:37:26,Action: File Uploaded - test1.mp3
+2025-03-18 13:37:27,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 13:57:51,Action: File Uploaded - test1.mp3
+2025-03-18 13:57:52,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:03:41,Action: File Uploaded - test1.mp3
+2025-03-18 14:03:42,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:04:11,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:04:17,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:04:54,Action: File Uploaded - 20240627_170029_6568714238_87227633_019058ec-c163-7ab4-8a7f-74811ed74ca0_621a3302-a851-48fb-b2bf-b70e33cfefac.mp3
+2025-03-18 14:04:55,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\20240627_170029_6568714238_87227633_019058ec-c163-7ab4-8a7f-74811ed74ca0_621a3302-a851-48fb-b2bf-b70e33cfefac.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:05:00,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:05:05,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:12:33,Action: File Uploaded - test1.mp3
+2025-03-18 14:12:34,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:13:02,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:13:28,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:13:35,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:14:35,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:14:41,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:15:05,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:15:17,Action: File Uploaded - 20240527_165759_6568714238_86878344_8246be1f-a9f6-4da2-bc9c-91bebddaaef7_618dfa98-362a-4a9b-879b-dced941242e5.mp3
+2025-03-18 14:15:39,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:30:58,Action: File Uploaded - test1.mp3
+2025-03-18 14:31:03,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:31:19,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:31:36,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:31:43,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:31:52,Action: File Uploaded - 20240627_170029_6568714238_87227633_019058ec-c163-7ab4-8a7f-74811ed74ca0_621a3302-a851-48fb-b2bf-b70e33cfefac.mp3
+2025-03-18 14:31:57,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\20240627_170029_6568.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:32:25,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:31,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:33,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:35,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:37,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:43,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:32:52,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:33:31,Action: File Uploaded - test1.mp3
+2025-03-18 14:33:36,Error: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1_1.mp3 is an Invalid MP3 or WAV File
+2025-03-18 14:35:53,Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 14:36:15,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:36:18,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:41:11,Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 14:41:25,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:41:47,Service Request: Fail (No Files Uploaded)
+2025-03-18 14:49:28,Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 14:49:44,Service Request: Fail (No Files Uploaded)
+2025-03-18 15:00:07,Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 15:00:56,Service Request: Fail (No Files Uploaded)
+2025-03-18 15:05:54,Service Request: Fail (No Files Uploaded)
+2025-03-18 15:13:34,Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 15:13:52,Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 15:14:01,Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
