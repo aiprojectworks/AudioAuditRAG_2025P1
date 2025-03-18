@@ -58,3 +58,72 @@
 2025-03-18 15:13:34 - Action: File Uploaded - NanyangPolytechnic.mp3
 2025-03-18 15:13:52 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
 2025-03-18 15:14:01 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 15:34:35 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 15:34:56 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 15:35:06 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 15:35:17 - Error: There are multiple elements with the same `key='download_text_0'`. To fix this, please make sure that the `key` argument is unique for each element you create.
+2025-03-18 15:46:28 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 15:46:35 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 15:46:43 - Error: There are multiple elements with the same `key='download_text_0'`. To fix this, please make sure that the `key` argument is unique for each element you create.
+2025-03-18 15:54:02 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 15:54:37 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 15:54:51 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 15:56:50 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 15:57:06 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 15:57:15 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 15:57:26 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:03:49 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:03:58 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:04:18 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:04:37 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 16:05:20 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:05:38 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:06:03 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:06:10 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 16:06:39 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:07:04 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_1.mp3
+2025-03-18 16:07:14 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic_2.mp3
+2025-03-18 16:17:05 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:17:24 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:17:35 - Successfully Audited: admin\NanyangPolytechnic.mp3
+2025-03-18 16:24:31 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:24:41 - Successfully Audited: admin\NanyangPolytechnic.mp3
+2025-03-18 16:49:33 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:49:51 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:50:02 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:50:28 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 16:50:39 - Action: File Uploaded - test1.mp3
+2025-03-18 16:51:02 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 16:51:38 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3
+2025-03-18 16:54:11 - Action: File Uploaded - test1.mp3
+2025-03-18 16:54:25 - Action: File Uploaded - 20240627_170029_6568714238_87227633_019058ec-c163-7ab4-8a7f-74811ed74ca0_621a3302-a851-48fb-b2bf-b70e33cfefac.mp3
+2025-03-18 17:00:29 - Action: File Uploaded - test1.mp3
+2025-03-18 17:00:37 - Error: cannot access local variable 'current_files' where it is not associated with a value
+2025-03-18 17:01:09 - Error: cannot access local variable 'current_files' where it is not associated with a value
+2025-03-18 17:01:27 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:01:35 - Error: cannot access local variable 'current_files' where it is not associated with a value
+2025-03-18 17:24:17 - Action: File Uploaded - test1.mp3
+2025-03-18 17:24:21 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:29:29 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:29:37 - Action: File Uploaded - test1.mp3
+2025-03-18 17:29:54 - Action: File Uploaded - test1.mp3
+2025-03-18 17:30:27 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\NanyangPolytechnic.mp3
+2025-03-18 17:31:02 - Successfully Audited: \Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3
+2025-03-18 17:31:46 - Action: File Uploaded - test1.mp3
+2025-03-18 17:32:49 - Action: File Uploaded - test1.mp3
+2025-03-18 17:41:11 - Action: File Uploaded - test1.mp3
+2025-03-18 17:41:36 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:44:54 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:45:00 - Action: File Uploaded - test1.mp3
+2025-03-18 17:47:12 - Action: File Uploaded - test1.mp3
+2025-03-18 17:47:12 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:47:23 - File to delete IS NOT DETECTED
+2025-03-18 17:58:44 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 17:58:44 - Action: File Uploaded - test1.mp3
+2025-03-18 17:58:50 - File to delete IS NOT DETECTED
+2025-03-18 18:02:22 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 18:02:22 - Action: File Uploaded - test1.mp3
+2025-03-18 18:02:38 - Error: 'charmap' codec can't encode character '\u274c' in position 22: character maps to <undefined>
+2025-03-18 18:04:52 - Action: File Uploaded - NanyangPolytechnic.mp3
+2025-03-18 18:04:52 - Action: File Uploaded - test1.mp3
+2025-03-18 18:04:59 -  File deleted: C:\Users\bwgya\Documents\GitHub\AudioAuditRAG_2025P1\admin\test1.mp3
