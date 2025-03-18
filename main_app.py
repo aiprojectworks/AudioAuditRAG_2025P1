@@ -19,6 +19,7 @@ import streamlit as st
 # import gc 
 import torch
 import os
+import bcrypt
 from dotenv import load_dotenv
 from datetime import datetime
 #LLM import
@@ -412,12 +413,19 @@ def start_beating(username):
 def authenticate(username, password):
     try:
         session = Session()
-        user = session.query(User).filter_by(username=username, password=password).first()
+        user = session.query(User).filter_by(username=username).first()
         session.close()
-        return user
+        if user and verify_password(user.password, password):  # Check password
+            return user
     except Exception as e:
         st.error(f"Database error: {e}")
         return None
+    
+def verify_password(stored_hash: str, input_password: str) -> bool:
+    """Verify if the input password matches the stored hashed password."""
+    # Convert the stored hash back to bytes if it's a string
+    stored_hash_bytes = stored_hash.encode('utf-8') if isinstance(stored_hash, str) else stored_hash
+    return bcrypt.checkpw(input_password.encode('utf-8'), stored_hash_bytes)
 
 # Login Page
 def login_page():
@@ -452,13 +460,22 @@ def save_audio_file(audio_bytes, name):
             os.makedirs(user_folder, exist_ok=True)
 
             name = os.path.basename(name)
-            file_name = os.path.join(user_folder, f"audio_{name}")
+            base_name, ext = os.path.splitext(name)  # Split name and extension
 
+            new_file_name = os.path.join(user_folder, f"{base_name}{ext}")
 
-            with open(file_name, "wb") as f:
+            # Check if file exists, and increment counter if needed
+            counter = 1
+            while os.path.exists(new_file_name):
+                new_file_name = os.path.join(user_folder, f"{base_name}_{counter}{ext}")
+                counter += 1
+
+            with open(new_file_name, "wb") as f:
                 f.write(audio_bytes)
-            print(f"File saved successfully: {file_name}")
-            return file_name  # Ensure you return the file name
+
+            print(f"File saved successfully: {new_file_name}")
+            return new_file_name  # Ensure you return the file name
+        
     except Exception as e:
         print(f"Failed to save file: {e}")
         return None  # Explicitly return None on failure
