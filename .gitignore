@@ -1,2 +1,6 @@
 .venv
 .env
+admin/*
+logfile.csv
+logfile.txt
+__pycache__

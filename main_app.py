@@ -37,7 +37,7 @@ from nltk.tree import Tree
 # from streamlit.components.v1 import html
 # import openai
 from openai import OpenAI
-from mutagen.mp3 import MP3
+from mutagen.mp3 import MP3, HeaderNotFoundError
 from mutagen.id3 import ID3, ID3NoHeaderError
 from pydub import AudioSegment
 import zipfile
@@ -462,31 +462,46 @@ def login_page():
 
 def save_audio_file(audio_bytes, name):
     try:
-        # Ensure the file has a proper extension
+        if not audio_bytes:
+            print(f"Error: No data in {name}")
+            return None
+
         if name.lower().endswith(".wav") or name.lower().endswith(".mp3"):
-            user_folder = os.path.join(".", st.session_state.get("username", "default_user"))
+            username = st.session_state.get("username", "default_user")
+            user_folder = os.path.join(".", username)
             os.makedirs(user_folder, exist_ok=True)
 
             # Sanitize filename and construct full path
             name = os.path.basename(name)
-            file_path = os.path.join(user_folder, name)
+            base_name, ext = os.path.splitext(name)  
+            short_name = base_name[:20]  
+            new_file_name = os.path.join(user_folder, f"{short_name}{ext}")
 
-            # Ensure unique file naming (avoid overwriting)
-            base_name, ext = os.path.splitext(file_path)
+            # Ensure unique file name
             counter = 1
-            while os.path.exists(file_path):
-                file_path = f"{base_name}_{counter}{ext}"
-                counter += 1
+            while os.path.exists(new_file_name):
+                print(f"✅ File already exists: {new_file_name}")
+                return os.path.abspath(new_file_name)
 
-            # Save the file
-            with open(file_path, "wb") as f:
+            # Save file
+            with open(new_file_name, "wb") as f:
                 f.write(audio_bytes)
 
-            # Convert to absolute path
-            file_path = os.path.abspath(file_path)
-            print(f"File saved successfully: {file_path}")
+            # Ensure file is actually written
+            time.sleep(1)  
+            full_path = os.path.abspath(new_file_name)
 
-            return file_path  # Always return absolute path
+            if os.path.exists(full_path):  
+                print(f"✅ File successfully saved at: {full_path}")
+                return full_path  
+            else:
+                print(f"❌ File not found after writing: {full_path}")
+                return None
+
+    except Exception as e:
+        print(f"❌ Failed to save file: {e}")
+        return None
+        
     except Exception as e:
         print(f"Failed to save file: {e}")
         return None  # Explicitly return None on failure
@@ -1446,37 +1461,32 @@ def log_selection():
         create_log_entry("Method Chosen: Folder Upload")
 
 def is_valid_mp3(file_path):
-    # Ensure the file exists
-    if not os.path.isfile(file_path):
-        print(f"File does not exist: {file_path}")
+    """Ensure the file exists and is a valid MP3"""
+    file_path = os.path.abspath(file_path)  
+
+    # Retry mechanism for file recognition
+    retry_attempts = 3
+    for _ in range(retry_attempts):
+        if os.path.exists(file_path):
+            break
+        time.sleep(1)  # Wait before retrying
+    else:
+        print(f"❌ File still not found after retries: {file_path}")
         return False
 
     try:
-        # Validate using mutagen
-        audio = MP3(file_path, ID3=ID3)
-        
-        # Check if the duration is valid
-        if audio.info.length <= 0:
-            print("Invalid MP3 file: Length is zero or negative.")
+        audio = MP3(file_path)
+        if audio.info.length <= 0:  
+            print("❌ Invalid MP3: length is zero.")
             return False
         
-        print(f"MP3 is valid with duration: {audio.info.length:.3f} seconds")
-
-        # Convert path to raw string (for Windows compatibility)
-        file_path = os.path.abspath(file_path)  
-        print(f"Checking with pydub: {file_path}")  # Debugging path
-
-        # Validate using pydub (extra check)
-        # try:
-        #     AudioSegment.from_file(file_path)
-        # except Exception as e:
-        #     print(f"Pydub could not process file: {e}")
-        #     return False
-
+        print(f"✅ Valid MP3 with duration: {audio.info.length} seconds")
         return True
-
+    except HeaderNotFoundError:
+        print(f"❌ {file_path} has no valid MP3 headers")
+        return False
     except Exception as e:
-        print(f"Error checking MP3: {e}")
+        print(f"❌ Invalid MP3 file: {e}")
         return False
     
 
@@ -1589,6 +1599,61 @@ def main():
                         type=["wav", "mp3"], 
                         accept_multiple_files=True
                     )
+                    st.write("Uploaded Files:", uploaded_files)
+                    
+                    # Ensure session states exist
+                    if 'uploaded_files' not in st.session_state:
+                        st.session_state.uploaded_files = {}
+
+                    if 'audio_files' not in st.session_state:
+                        st.session_state.audio_files = []
+
+                    # Track currently uploaded files
+                    current_files = {file.name: file for file in uploaded_files} if uploaded_files else {}
+
+                    # Detect removed files (files that were previously uploaded but are now missing)
+                    removed_files = [
+                        file_name for file_name in st.session_state.uploaded_files 
+                        if file_name not in current_files
+                    ]
+
+                    # Remove files from session state and delete them from the system
+                    for file_name in removed_files:
+                        # Remove from UI state
+                        st.session_state.audio_files = [f for f in st.session_state.audio_files if not f.endswith(file_name)]
+                        
+                        # Get the actual saved file path
+                        username = st.session_state["username"]
+                        user_folder = os.path.abspath(os.path.join(".", username))  # Get absolute path for user folder
+                        matching_files = glob.glob(os.path.abspath(os.path.join(user_folder, f"*{file_name}")))  # Match file
+
+                        if matching_files:
+                            for full_path in matching_files:
+                                if os.path.exists(full_path):
+                                    try:
+                                        os.remove(full_path)  # Delete file from the system
+                                        create_log_entry(f" File deleted: {full_path}")
+                                    except Exception as e:
+                                        st.error(f"❌ Error deleting file {file_name}: {e}")
+                                        create_log_entry(f" Error deleting file {file_name}: {e}")
+                        else:
+                            create_log_entry(f"⚠️ File to delete NOT DETECTED: {file_name}")
+                        
+                        # Remove file from storage
+                        # full_path = os.path.join(st.session_state["username"], f"audio_{file_name}")
+                        # if os.path.exists(full_path):
+                        #     try:
+                        #         os.remove(full_path)  # Delete file from the system
+                        #         create_log_entry(f"File deleted: {full_path}")
+                        #     except Exception as e:
+                        #         st.error(f"Error deleting file {file_name}: {e}")
+                        # else:
+                        #     create_log_entry("File to delete IS NOT DETECTED")
+
+                        # Remove from session state
+                        del st.session_state.uploaded_files[file_name]
+
+
                     # # Create a set to track unique filenames
                     # unique_filenames = set()
 
@@ -1599,6 +1664,7 @@ def main():
                     #         st.warning("File has already been added!")
                     #     else:
                     #         unique_filenames.add(file.name)
+
 
                     if uploaded_files is not None:
                         #!removing this because its broken
@@ -1648,7 +1714,27 @@ def main():
                                     st.error(f"Error deleting file {file_name}: {e}")
                                     create_log_entry(f"Error deleting file {file_name}: {e}")                    
 
+                        if uploaded_files:
+                            for file in uploaded_files:
+                                try:
+                                    audio_content = file.read()
+                                    saved_path = save_audio_file(audio_content, file.name)
 
+                                    if saved_path and os.path.exists(saved_path):  
+                                        saved_path = os.path.abspath(saved_path)  # Ensure absolute path
+                                        print(f"✅ File saved at: {saved_path}")
+                                        
+                                        if is_valid_mp3(saved_path):
+                                            if saved_path not in st.session_state.audio_files:  # Prevent duplication
+                                                st.session_state.audio_files.append(saved_path)
+                                                print(f"✅ Added to session state: {saved_path}")
+                                        else:
+                                            st.error(f"❌ {saved_path} is an Invalid MP3 or WAV File")
+                                    else:
+                                        st.error("❌ Failed to save uploaded file.")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading audio file: {e}")
+                                    print(f"❌ Error loading audio file: {e}")
 
                         for file_name in added_files:
                             create_log_entry(f"Action: File Uploaded - {file_name}")
@@ -1658,21 +1744,27 @@ def main():
                             try:
                                 audio_content = file.read()
                                 saved_path = save_audio_file(audio_content, file_name)
-                                if is_valid_mp3(saved_path):
-                                    st.session_state.audio_files.append(saved_path)
-                                    st.session_state.file_change_detected = True
+                                if saved_path and os.path.exists(saved_path):  # Ensure the file is actually saved
+                                    if is_valid_mp3(saved_path):
+                                        st.session_state.audio_files.append(saved_path)
+                                    else:
+                                        st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                 else:
-                                    st.error(f"{saved_path[2:]} is an Invalid MP3 or WAV File")
-                                    create_log_entry(f"Error: {saved_path[2:]} is an Invalid MP3 or WAV File")
+                                    st.error("Failed to save the uploaded file.")
                             except Exception as e:
                                 st.error(f"Error loading audio file: {e}")
                                 create_log_entry(f"Error loading audio file: {e}")  
 
+                        # Display Uploaded Audio Files
                         if st.session_state.uploaded_files:
-                            st.subheader("Uploaded Audio Files")
-                            for file_name, file_obj in st.session_state.uploaded_files.items():
-                                with st.expander(f"Audio: {file_name}"):
-                                    st.audio(file_obj, format="audio/mp3", start_time=0)
+                            st.subheader("Uploaded Audio Files Player")
+                            updated_files = list(st.session_state.uploaded_files.keys())  # Updated file list
+
+                            # Only display the remaining valid files
+                            for file_name in updated_files:
+                                if file_name in st.session_state.uploaded_files:
+                                    with st.expander(f"Audio: {file_name}"):
+                                        st.audio(st.session_state.uploaded_files[file_name], format="audio/mp3", start_time=0)
 
                         # Determine files that have been removed
                         # removed_files = [file_name for file_name in st.session_state.uploaded_files if file_name not in current_files]
@@ -1721,6 +1813,8 @@ def main():
                                 delete_mp3_files(directory)
                                 create_log_entry("Action: Uploaded Folder Removed")
                                 success_message = "Uploaded folder has been removed."
+                      
+                        
 
                     # Display the success message if it exists
                     if 'success_message' in locals():
@@ -1758,6 +1852,8 @@ def main():
 
                         st.write(audio_files)
                         # print(audio_files)
+
+                st.write("Audio files in session state:", st.session_state.audio_files)
 
                 # Submit button
                 submit = st.button("Submit", use_container_width=True)
@@ -1809,6 +1905,10 @@ def main():
                                                 status = "<span style='color: red;'> (FAIL)</span>"
                                             else:
                                                 status = "<span style='color: green;'> (PASS)</span>"
+                                    
+                                    # Ensure we only add non-duplicate results
+                                    if audio_file not in all_text:
+                                        all_text[audio_file[2:]] = text
                             except Exception as e:
                                 error_message = f"Error processing file: {audio_file} - {e}"
                                 create_log_entry(error_message)
