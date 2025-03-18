@@ -461,29 +461,31 @@ def login_page():
 
 def save_audio_file(audio_bytes, name):
     try:
+        # Ensure the file has a proper extension
         if name.lower().endswith(".wav") or name.lower().endswith(".mp3"):
-            username = st.session_state["username"]
-
-            user_folder = os.path.join(".", username)
+            user_folder = os.path.join(".", st.session_state.get("username", "default_user"))
             os.makedirs(user_folder, exist_ok=True)
 
+            # Sanitize filename and construct full path
             name = os.path.basename(name)
-            base_name, ext = os.path.splitext(name)  # Split name and extension
+            file_path = os.path.join(user_folder, name)
 
-            new_file_name = os.path.join(user_folder, f"{base_name}{ext}")
-
-            # Check if file exists, and increment counter if needed
+            # Ensure unique file naming (avoid overwriting)
+            base_name, ext = os.path.splitext(file_path)
             counter = 1
-            while os.path.exists(new_file_name):
-                new_file_name = os.path.join(user_folder, f"{base_name}_{counter}{ext}")
+            while os.path.exists(file_path):
+                file_path = f"{base_name}_{counter}{ext}"
                 counter += 1
 
-            with open(new_file_name, "wb") as f:
+            # Save the file
+            with open(file_path, "wb") as f:
                 f.write(audio_bytes)
 
-            print(f"File saved successfully: {new_file_name}")
-            return new_file_name  # Ensure you return the file name
-        
+            # Convert to absolute path
+            file_path = os.path.abspath(file_path)
+            print(f"File saved successfully: {file_path}")
+
+            return file_path  # Always return absolute path
     except Exception as e:
         print(f"Failed to save file: {e}")
         return None  # Explicitly return None on failure
@@ -1443,30 +1445,37 @@ def log_selection():
         create_log_entry("Method Chosen: Folder Upload")
 
 def is_valid_mp3(file_path):
-    # Check if file exists
+    # Ensure the file exists
     if not os.path.isfile(file_path):
-        print("File does not exist.")
+        print(f"File does not exist: {file_path}")
         return False
 
     try:
-        # Check the file using mutagen
+        # Validate using mutagen
         audio = MP3(file_path, ID3=ID3)
         
-        # Check for basic properties
-        if audio.info.length <= 0:  # Length should be greater than 0
-            print("File is invalid: Length is zero or negative.")
+        # Check if the duration is valid
+        if audio.info.length <= 0:
+            print("Invalid MP3 file: Length is zero or negative.")
             return False
         
-        # You can check additional metadata if needed
-        print("File is valid MP3 with duration:", audio.info.length)
-        
-        # Optional: Check if the file can be loaded with pydub
-        AudioSegment.from_file(file_path)  # This will raise an exception if the file is not valid
-        
+        print(f"MP3 is valid with duration: {audio.info.length:.3f} seconds")
+
+        # Convert path to raw string (for Windows compatibility)
+        file_path = os.path.abspath(file_path)  
+        print(f"Checking with pydub: {file_path}")  # Debugging path
+
+        # Validate using pydub (extra check)
+        # try:
+        #     AudioSegment.from_file(file_path)
+        # except Exception as e:
+        #     print(f"Pydub could not process file: {e}")
+        #     return False
+
         return True
-    except (ID3NoHeaderError, Exception) as e:
-        print(f"Invalid MP3 file: {e}")
-        # create_log_entry(f"Error: Invalid MP3 file: {e}")
+
+    except Exception as e:
+        print(f"Error checking MP3: {e}")
         return False
     
 
