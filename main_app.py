@@ -130,12 +130,19 @@ def validate_password(password: str) -> Tuple[bool, str]:
         return False, "Password must contain at least one special character."
     return True, ""
 
+def hash_password(password):
+    # Salt the password before hashing it
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_password.decode('utf-8')
+
 def add_user(username: str, password: str, role: str = "user") -> Tuple[bool, str]:
     """Add a new user to the database"""
     try:
         # Validate password
         session = Session()
-        new_user = User(username=username, password=password, role=role)
+        hashed_password = hash_password(password)
+        new_user = User(username=username, password=hashed_password, role=role)
         is_valid, message = validate_password(password)
         if not is_valid:
             return False, message
@@ -186,12 +193,6 @@ def get_all_users() -> list:
         return []
     finally:
         session.close()
-
-def hash_password(password):
-    # Salt the password before hashing it
-    salt = bcrypt.gensalt()
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed_password.decode('utf-8')
 
 def change_password(username: str, new_password: str) -> Tuple[bool, str]:
     """Change a user's password"""
