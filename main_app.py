@@ -463,6 +463,7 @@ def login_page():
 def save_audio_file(audio_bytes, name):
     try:
         if not audio_bytes:
+            print(f"📂 Received {len(audio_bytes)} bytes for {name}")
             print(f"Error: No data in {name}")
             return None
 
@@ -1742,14 +1743,24 @@ def main():
                             st.session_state.uploaded_files[file_name] = current_files[file_name]
 
                             try:
+                                file.seek(0)
                                 audio_content = file.read()
                                 saved_path = save_audio_file(audio_content, file_name)
                                 if saved_path and os.path.exists(saved_path):  # Ensure the file is actually saved
                                     if is_valid_mp3(saved_path):
-                                        st.session_state.audio_files.append(saved_path)
+                                        if saved_path not in st.session_state.audio_files:  # Prevent duplication
+                                            st.session_state.audio_files.append(saved_path)
                                     else:
                                         st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                 else:
+                                    if saved_path:
+                                        create_log_entry(f"File was returned: {saved_path}")
+                                        if os.path.exists(saved_path):
+                                            create_log_entry(f"File successfully exists: {saved_path}")
+                                        else:
+                                            create_log_entry(f"File does not exist even though it was returned: {saved_path}")
+                                    else:
+                                        create_log_entry(f"save_audio_file() returned None")
                                     st.error("Failed to save the uploaded file.")
                             except Exception as e:
                                 st.error(f"Error loading audio file: {e}")
