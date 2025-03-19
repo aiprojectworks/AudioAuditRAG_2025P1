@@ -1754,13 +1754,13 @@ def main():
                                         st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                 else:
                                     if saved_path:
-                                        create_log_entry(f"YAY File was returned: {saved_path}")
+                                        create_log_entry(f"File was returned: {saved_path}")
                                         if os.path.exists(saved_path):
-                                            create_log_entry(f"YAY File successfully exists: {saved_path}")
+                                            create_log_entry(f"File successfully exists: {saved_path}")
                                         else:
-                                            create_log_entry(f"BRUH File does not exist even though it was returned: {saved_path}")
+                                            create_log_entry(f"File does not exist even though it was returned: {saved_path}")
                                     else:
-                                        create_log_entry(f"BRUH save_audio_file() returned None")
+                                        create_log_entry(f"save_audio_file() returned None")
                                     st.error("Failed to save the uploaded file.")
                             except Exception as e:
                                 st.error(f"Error loading audio file: {e}")
