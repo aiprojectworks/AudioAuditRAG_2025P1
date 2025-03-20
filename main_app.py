@@ -1510,22 +1510,22 @@ def is_valid_mp3(file_path):
             break
         time.sleep(1)  # Wait before retrying
     else:
-        print(f"❌ File still not found after retries: {file_path}")
+        print(f"File still not found after retries: {file_path}")
         return False
 
     try:
         audio = MP3(file_path)
         if audio.info.length <= 0:  
-            print("❌ Invalid MP3: length is zero.")
+            print("Invalid MP3: length is zero.")
             return False
         
-        print(f"✅ Valid MP3 with duration: {audio.info.length} seconds")
+        print(f"Valid MP3 with duration: {audio.info.length} seconds")
         return True
     except HeaderNotFoundError:
-        print(f"❌ {file_path} has no valid MP3 headers")
+        print(f"{file_path} has no valid MP3 headers")
         return False
     except Exception as e:
-        print(f"❌ Invalid MP3 file: {e}")
+        print(f"Invalid MP3 file: {e}")
         return False
     
 
