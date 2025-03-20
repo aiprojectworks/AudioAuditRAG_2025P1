@@ -234,6 +234,30 @@ def change_role(username: str, new_role: str) -> Tuple[bool, str]:
 def admin_interface():
     """Render the admin interface in Streamlit"""
     st.title("Admin Panel")
+
+    st.subheader("Event Log")
+    log_container = st.container()
+    with log_container:
+        # Read and display the log content
+        log_content = read_log_file()
+        log_content = log_content.replace('\n', '<br>')
+
+        # Display the log with custom styling
+        html_content = (
+            "<div style='height:200px; overflow-y:scroll; background-color:#2b2b2b; color:#f8f8f2; "
+            "padding:10px; border-radius:5px; border:1px solid #444;'>"
+            "<pre style='font-family: monospace; font-size: 13px; line-height: 1.5em;'>{}</pre>"
+            "</div>"
+        ).format(log_content)
+        
+        st.markdown(html_content, unsafe_allow_html=True)
+        
+    csv_file = 'logfile.csv'
+    st.markdown("<br>", unsafe_allow_html=True)
+    if os.path.exists(csv_file):
+        with open(csv_file, 'rb') as file:
+            file_contents = file.read()
+            handle_download_log_file(data=file_contents, file_name='log.csv', mime='text/csv', log_message="Action: Event Log Downloaded")
     
     # Add New User Section
     st.subheader("Add New User")
@@ -251,10 +275,10 @@ def admin_interface():
             success, message = add_user(new_username, hashed_password, new_role)
             if success:
                 st.success(message)
-                create_log_entry(f"Admin Action: Added new user - {new_username}")
+                create_log_entry(f"ADMIN: {st.session_state.username}, ADDED NEW USER: {new_username}")
             else:
                 st.error(message)
-                create_log_entry(f"Admin Action Failed: Add user - {new_username} - {message}")
+                create_log_entry(f"ADMIN: {st.session_state.username}, ACTION FAILED: Unable to add user '{new_username}', Reason: {message}")
         else:
             st.warning("Please fill in all fields")
 
@@ -274,7 +298,7 @@ def admin_interface():
                             success, message = change_password(user['username'], new_pass)
                             if success:
                                 st.success(message)
-                                create_log_entry(f"Admin Action: Changed password for user - {user['username']}")
+                                create_log_entry(f"ADMIN: {st.session_state.username}, CHANGED PASSWORD FOR USER: {user['username']}")
                             else:
                                 st.error(message)
                     
@@ -287,7 +311,8 @@ def admin_interface():
                         success, message = change_role(user['username'], new_role)
                         if success:
                             st.success(message)
-                            create_log_entry(f"Admin Action: Changed role for user - {user['username']} to {new_role}")
+                            old_role = st.session_state.get("role")
+                            create_log_entry(f"ADMIN: {st.session_state.username}, CHANGED ROLE FOR USER: {user['username']} from {old_role} to {new_role}")
                         else:
                             st.error(message)
 
@@ -297,7 +322,7 @@ def admin_interface():
                         success, message = delete_user(user['username'])
                         if success:
                             st.success(message)
-                            create_log_entry(f"Admin Action: Deleted user - {user['username']}")
+                            create_log_entry(f"ADMIN: {st.session_state.username}, DELETED USER: {user['username']}")
                             st.rerun()
                         else:
                             st.error(message)
@@ -1448,11 +1473,23 @@ def read_log_file(log_file='logfile.txt'):
         # Reverse the log entries
         log_content = log_content[::-1]
         if log_content:
-            log_content[0] = f"<span style='color: yellow;'>{log_content[0].strip()}</span>\n"
+            for i in range(len(log_content)):
+                log_entry = log_content[i].strip()
 
-        return ''.join(log_content)
+                if "ADMIN" in log_entry:  
+                    log_content[i] = f"<span style='color: yellow;'>{log_entry}</span>\n"  # 🟡 Admin Log
+                
+                elif "ERROR" in log_entry or "NOT" in log_entry or "FAIL" in log_entry:  
+                    log_content[i] = f"<span style='color: red;'>{log_entry}</span>\n"  # 🔴 Error Log
+                
+                else:  
+                    log_content[i] = f"<span style='color: white;'>{log_entry}</span>\n"  # ⚪ Default User Log
+
+            return ''.join(log_content)
+        else:
+            return "LOG FILE IS EMPTY."
     else:
-        return "Log file does not exist."
+        return "LOG FILE DOES NOT EXIST."
     
     
 def log_selection():
@@ -1634,12 +1671,12 @@ def main():
                                 if os.path.exists(full_path):
                                     try:
                                         os.remove(full_path)  # Delete file from the system
-                                        create_log_entry(f"File deleted: {full_path}")
+                                        create_log_entry(f"USER: {st.session_state.username}, DELETED FILE: {full_path}")
                                     except Exception as e:
                                         st.error(f"Error deleting file {file_name}: {e}")
-                                        create_log_entry(f"Error deleting file {file_name}: {e}")
+                                        create_log_entry(f"ERROR DELETING FILE: {file_name} - {e}")
                         else:
-                            create_log_entry(f"File to delete NOT DETECTED: {file_name}")
+                            create_log_entry(f"FILE TO DELETE IS NOT DETECTED: {file_name}")
                         
                         # Remove file from storage
                         # full_path = os.path.join(st.session_state["username"], f"audio_{file_name}")
@@ -1709,12 +1746,12 @@ def main():
                                     # print(full_path)
                                     os.remove(full_path)  # Delete the file 
                                     
-                                    create_log_entry(f"Action: File Deleted - {full_path}")
+                                    create_log_entry(f"USER: {st.session_state.username}, DELETED FILE: {full_path}")
                                     del st.session_state.uploaded_files[file_name]
 
                                 except Exception as e:
                                     st.error(f"Error deleting file {file_name}: {e}")
-                                    create_log_entry(f"Error deleting file {file_name}: {e}")                    
+                                    create_log_entry(f"ERROR DELETING FILE {file_name}: {e}")                    
 
                         if uploaded_files:
                             for file in uploaded_files:
@@ -1739,7 +1776,7 @@ def main():
                                     print(f"Error loading audio file: {e}")
 
                         for file_name in added_files:
-                            create_log_entry(f"Action: File Uploaded - {file_name}")
+                            create_log_entry(f"USER: {st.session_state.username}, UPLOADED FILE: {file_name}")
                             file = current_files[file_name]
                             st.session_state.uploaded_files[file_name] = current_files[file_name]
 
@@ -1755,17 +1792,17 @@ def main():
                                         st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                 else:
                                     if saved_path:
-                                        create_log_entry(f"File was returned: {saved_path}")
+                                        create_log_entry(f"FILE WAS RETURNED: {saved_path}")
                                         if os.path.exists(saved_path):
-                                            create_log_entry(f"File successfully exists: {saved_path}")
+                                            create_log_entry(f"FILE SUCCESSFULLY EXISTS: {saved_path}")
                                         else:
-                                            create_log_entry(f"File does not exist even though it was returned: {saved_path}")
+                                            create_log_entry(f"FILE DOES NOT EXIST EVEN THOUGH IT WAS RETURNED: {saved_path}")
                                     else:
                                         create_log_entry(f"save_audio_file() returned None")
                                     st.error("Failed to save the uploaded file.")
                             except Exception as e:
                                 st.error(f"Error loading audio file: {e}")
-                                create_log_entry(f"Error loading audio file: {e}")  
+                                create_log_entry(f"ERROR LOADING AUDIO FILE: {e}")  
 
                         # Display Uploaded Audio Files
                         if st.session_state.uploaded_files:
@@ -1811,7 +1848,7 @@ def main():
                             selected_folder_path = select_folder()  # Assume this is a function that handles folder selection
                             if selected_folder_path:
                                 st.session_state.folder_path = selected_folder_path
-                                create_log_entry(f"Action: Folder Uploaded - {selected_folder_path}")
+                                create_log_entry(f"USER: {st.session_state.username}, UPLOADED FOLDER: {selected_folder_path}")
 
                     with col2:
                         # Option to remove the selected folder
@@ -1823,7 +1860,7 @@ def main():
                                 selected_folder_path = None
                                 directory = username
                                 delete_mp3_files(directory)
-                                create_log_entry("Action: Uploaded Folder Removed")
+                                create_log_entry(f"USER: {st.session_state.username}, REMOVED UPLOADED FOLDER")
                                 success_message = "Uploaded folder has been removed."
                       
                         
@@ -1853,7 +1890,7 @@ def main():
                                         audio_files.append(saved_file_path)
                                     else:
                                         st.error(f"{saved_file_path[2:]} is an Invalid MP3 or WAV File")
-                                        create_log_entry(f"Error: {saved_file_path[2:]} is an Invalid MP3 or WAV File")
+                                        create_log_entry(f"ERROR: {saved_file_path[2:]} IS AN INVALID MP3 OR WAV FILE")
 
 
                             except Exception as e:
@@ -1871,7 +1908,7 @@ def main():
                 submit = st.button("Submit", use_container_width=True)
 
                 if submit and audio_files == []:
-                    create_log_entry("Service Request: Fail (No Files Uploaded)")
+                    create_log_entry("SERVICE REQUEST: FAIL (NO FILES UPLOADED)")
                     st.error("No Files Uploaded, Please Try Again!")
 
 
@@ -1922,7 +1959,7 @@ def main():
                                     if audio_file not in all_text:
                                         all_text[audio_file[2:]] = text
                             except Exception as e:
-                                error_message = f"Error processing file: {audio_file} - {e}"
+                                error_message = f"ERROR PROCESSING FILE: {audio_file} - {e}"
                                 create_log_entry(error_message)
                                 st.error(error_message)
                                 continue
@@ -2004,7 +2041,7 @@ def main():
                                 zip_download(count=audio_files.index(audio_file) ,data=zip_buffer, file_name=f'{audio_file[2:]}.zip', mime="application/zip", log_message="Action: Audited Results Zip File Downloaded")
                                 
                         current += 1
-                        create_log_entry(f"Successfully Audited: {audio_file[2:]}")
+                        create_log_entry(f"SUCCESSFULLY AUDITED: {audio_file[2:]}")
                         df.loc[len(df)] = pd.Series(dtype='float64')
                         combined_results.append(df)
                     #     if save_audited_transcript:
@@ -2055,33 +2092,9 @@ def main():
                     #     st.error("Please specify a destination folder to save audited transcript!")
 
 
-                if st.session_state.get("role") == "admin":
-                    st.subheader("Event Log")
-                    log_container = st.container()
-                    with log_container:
-                        # Read and display the log content
-                        log_content = read_log_file()
-                        log_content = log_content.replace('\n', '<br>')
-
-                        # Display the log with custom styling
-                        html_content = (
-                            "<div style='height:200px; overflow-y:scroll; background-color:#2b2b2b; color:#f8f8f2; "
-                            "padding:10px; border-radius:5px; border:1px solid #444;'>"
-                            "<pre style='font-family: monospace; font-size: 13px; line-height: 1.5em;'>{}</pre>"
-                            "</div>"
-                        ).format(log_content)
-                        
-                        st.markdown(html_content, unsafe_allow_html=True)
-                        
-                    csv_file = 'logfile.csv'
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if os.path.exists(csv_file):
-                        with open(csv_file, 'rb') as file:
-                            file_contents = file.read()
-                            handle_download_log_file(data=file_contents, file_name='log.csv', mime='text/csv', log_message="Action: Event Log Downloaded")
     except Exception as e:
         # st.error(f"An error occurred: {e}")
-        create_log_entry(f"Error: {e}")
+        create_log_entry(f"ERROR: {e}")
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
