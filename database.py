@@ -1,8 +1,11 @@
 import bcrypt
+import os
+from dotenv import load_dotenv
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+load_dotenv()
 Base = declarative_base()
 
 class User(Base):
@@ -13,7 +16,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default='user')
 
 
-engine = create_engine("mysql+pymysql://audio_user:audioauditrag@localhost/audio_audit_rag")  # MySQL database
+engine = create_engine(os.getenv('DBMS_URI')) 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 

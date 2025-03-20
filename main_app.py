@@ -456,6 +456,7 @@ def login_page():
         if user:
             st.session_state["logged_in"] = True
             st.session_state["username"] = user.username
+            st.session_state["role"] = user.role
             st.rerun()
         else:
             st.error("Invalid username or password!")
@@ -463,7 +464,7 @@ def login_page():
 def save_audio_file(audio_bytes, name):
     try:
         if not audio_bytes:
-            print(f"📂 Received {len(audio_bytes)} bytes for {name}")
+            print(f"Received {len(audio_bytes)} bytes for {name}")
             print(f"Error: No data in {name}")
             return None
 
@@ -481,7 +482,7 @@ def save_audio_file(audio_bytes, name):
             # Ensure unique file name
             counter = 1
             while os.path.exists(new_file_name):
-                print(f"✅ File already exists: {new_file_name}")
+                print(f"File already exists: {new_file_name}")
                 return os.path.abspath(new_file_name)
 
             # Save file
@@ -493,14 +494,14 @@ def save_audio_file(audio_bytes, name):
             full_path = os.path.abspath(new_file_name)
 
             if os.path.exists(full_path):  
-                print(f"✅ File successfully saved at: {full_path}")
+                print(f"File successfully saved at: {full_path}")
                 return full_path  
             else:
-                print(f"❌ File not found after writing: {full_path}")
+                print(f"File not found after writing: {full_path}")
                 return None
 
     except Exception as e:
-        print(f"❌ Failed to save file: {e}")
+        print(f"Failed to save file: {e}")
         return None
         
     except Exception as e:
@@ -1633,12 +1634,12 @@ def main():
                                 if os.path.exists(full_path):
                                     try:
                                         os.remove(full_path)  # Delete file from the system
-                                        create_log_entry(f" File deleted: {full_path}")
+                                        create_log_entry(f"File deleted: {full_path}")
                                     except Exception as e:
-                                        st.error(f"❌ Error deleting file {file_name}: {e}")
-                                        create_log_entry(f" Error deleting file {file_name}: {e}")
+                                        st.error(f"Error deleting file {file_name}: {e}")
+                                        create_log_entry(f"Error deleting file {file_name}: {e}")
                         else:
-                            create_log_entry(f"⚠️ File to delete NOT DETECTED: {file_name}")
+                            create_log_entry(f"File to delete NOT DETECTED: {file_name}")
                         
                         # Remove file from storage
                         # full_path = os.path.join(st.session_state["username"], f"audio_{file_name}")
@@ -1723,19 +1724,19 @@ def main():
 
                                     if saved_path and os.path.exists(saved_path):  
                                         saved_path = os.path.abspath(saved_path)  # Ensure absolute path
-                                        print(f"✅ File saved at: {saved_path}")
+                                        print(f"File saved at: {saved_path}")
                                         
                                         if is_valid_mp3(saved_path):
                                             if saved_path not in st.session_state.audio_files:  # Prevent duplication
                                                 st.session_state.audio_files.append(saved_path)
-                                                print(f"✅ Added to session state: {saved_path}")
+                                                print(f"Added to session state: {saved_path}")
                                         else:
-                                            st.error(f"❌ {saved_path} is an Invalid MP3 or WAV File")
+                                            st.error(f"{saved_path} is an Invalid MP3 or WAV File")
                                     else:
-                                        st.error("❌ Failed to save uploaded file.")
+                                        st.error("Failed to save uploaded file.")
                                 except Exception as e:
-                                    st.error(f"❌ Error loading audio file: {e}")
-                                    print(f"❌ Error loading audio file: {e}")
+                                    st.error(f"Error loading audio file: {e}")
+                                    print(f"Error loading audio file: {e}")
 
                         for file_name in added_files:
                             create_log_entry(f"Action: File Uploaded - {file_name}")
@@ -2054,29 +2055,30 @@ def main():
                     #     st.error("Please specify a destination folder to save audited transcript!")
 
 
-                st.subheader("Event Log")
-                log_container = st.container()
-                with log_container:
-                    # Read and display the log content
-                    log_content = read_log_file()
-                    log_content = log_content.replace('\n', '<br>')
+                if st.session_state.get("role") == "admin":
+                    st.subheader("Event Log")
+                    log_container = st.container()
+                    with log_container:
+                        # Read and display the log content
+                        log_content = read_log_file()
+                        log_content = log_content.replace('\n', '<br>')
 
-                    # Display the log with custom styling
-                    html_content = (
-                        "<div style='height:200px; overflow-y:scroll; background-color:#2b2b2b; color:#f8f8f2; "
-                        "padding:10px; border-radius:5px; border:1px solid #444;'>"
-                        "<pre style='font-family: monospace; font-size: 13px; line-height: 1.5em;'>{}</pre>"
-                        "</div>"
-                    ).format(log_content)
-                    
-                    st.markdown(html_content, unsafe_allow_html=True)
-                    
-                csv_file = 'logfile.csv'
-                st.markdown("<br>", unsafe_allow_html=True)
-                if os.path.exists(csv_file):
-                    with open(csv_file, 'rb') as file:
-                        file_contents = file.read()
-                        handle_download_log_file(data=file_contents, file_name='log.csv', mime='text/csv', log_message="Action: Event Log Downloaded")
+                        # Display the log with custom styling
+                        html_content = (
+                            "<div style='height:200px; overflow-y:scroll; background-color:#2b2b2b; color:#f8f8f2; "
+                            "padding:10px; border-radius:5px; border:1px solid #444;'>"
+                            "<pre style='font-family: monospace; font-size: 13px; line-height: 1.5em;'>{}</pre>"
+                            "</div>"
+                        ).format(log_content)
+                        
+                        st.markdown(html_content, unsafe_allow_html=True)
+                        
+                    csv_file = 'logfile.csv'
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if os.path.exists(csv_file):
+                        with open(csv_file, 'rb') as file:
+                            file_contents = file.read()
+                            handle_download_log_file(data=file_contents, file_name='log.csv', mime='text/csv', log_message="Action: Event Log Downloaded")
     except Exception as e:
         # st.error(f"An error occurred: {e}")
         create_log_entry(f"Error: {e}")
