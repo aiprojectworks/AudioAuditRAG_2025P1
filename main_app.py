@@ -1318,6 +1318,218 @@ def retrieve_relevant_chunks(
 
     return results
 
+def stage_1_criteria_audit(relevant_chunks_dict: dict[str, list[tuple[int, float, str]]], model_engine="gpt-4o-mini"):
+    import json
+    import re
+    from openai import OpenAI
+
+    client = OpenAI()
+
+    # Stage 1 Audit Criteria with bracket context
+    criteria_list = [
+        "Did the telemarketer introduced themselves by stating their name? (Usually followed by 'calling from')",
+        "Did the telemarketer state that they are calling from one of these ['IPP', 'IPPFA', 'IPP Financial Advisors'] without mentioning on behalf of any other insurers?(accept anyone one of the 3 name given)",
+        "Did the customer asked how did the telemarketer obtained their contact details? If they asked, did telemarketer mentioned who gave the customer's details to him? (Not Applicable if customer didn't)",
+        "Did the telemarketer specify the types of financial services offered?",
+        "Did the telemarketer offered to set up a meeting or zoom session with the consultant for the customer? (Try to specify the date and location if possible)",
+        "Did the telemarketer stated that products have high returns, guaranteed returns, or capital guarantee? (Fail if they did, Pass if they didn't)",
+        "Was the telemarketer polite and professional in their conduct?"
+    ]
+
+    output_results = []
+    overall_result = "Pass"
+    fail_count = 0  # New counter for failed criteria
+
+    for criterion in criteria_list:
+        # Get the top-k chunks retrieved for this specific criterion
+        top_chunks_info = relevant_chunks_dict.get(criterion, [])
+        combined_text = "\n\n".join([chunk[2] for chunk in top_chunks_info])
+
+        print(f"\n--- Auditing Criterion ---\n{criterion}\n")
+
+        prompt = f"""
+        You are an auditor for IPP or IPPFA. 
+        You are tasked with auditing a conversation between a telemarketer from IPP or IPPFA and a customer. 
+        The audit evaluates whether the telemarketer adhered to a specific criterion from a predefined list.
+
+        ### Instruction:
+        - Review the provided conversation transcript.
+        - Assess the telemarketer's compliance **only for the following single criterion**:
+            "{criterion}"
+        - Quote specific reasons from the conversation to justify the result.
+        - Only mark a criterion as "Pass" if you are very confident (i.e., nearly certain) based on clear and specific evidence.
+        - If not applicable, you may return "Not Applicable".
+        
+        ### Input Transcript:
+        {combined_text}
+        
+        ### Response Format (JSON):
+        [
+            {{
+                "Criteria": "{criterion}",
+                "Reason": "<Your explanation>",
+                "Result": "Pass" or "Fail" or "Not Applicable"
+            }}
+        ]
+        """
+
+        response = client.chat.completions.create(
+            model=model_engine,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+
+        result_text = response.choices[0].message.content
+        cleaned = (
+            result_text.replace("```json", "")
+            .replace("```", "")
+            .replace("### Response:", "")
+            .strip()
+        )
+
+        try:
+            result_json = json.loads(cleaned)
+        except Exception as e:
+            print(f"[!] JSON parsing error for criterion:\n{criterion}")
+            print("Raw output:\n", result_text)
+            raise e
+
+        output_results.append(result_json[0])
+
+        # Update fail count
+        if result_json[0]["Result"] == "Fail":
+            fail_count += 1
+
+    # Final result decision based on fail count
+    if fail_count >= 2:
+        overall_result = "Fail"
+
+    final_output = {
+        "Stage 1": output_results,
+        "Overall Result": overall_result
+    }
+
+    return final_output
+
+
+def stage_2_criteria_audit(
+    stage_1_result: dict,
+    relevant_chunks_dict: dict[str, list[tuple[int, float, str]]],
+    model_engine="gpt-4o-mini"
+):
+    import json
+    import re
+    from openai import OpenAI
+
+    client = OpenAI()
+
+    # Only proceed if Stage 1 passed
+    if stage_1_result.get("Overall Result") != "Pass":
+        print("❌ Stage 1 did not pass. Skipping Stage 2.")
+        return None
+
+    # Stage 2 Audit Criteria
+    criteria_list = [
+        "Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?",
+        "Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?",
+        "Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)? (Fail if they did, Pass if they didn't)"
+    ]
+
+    output_results = []
+    overall_result = "Pass"
+    fail_count = 0  # Allow up to 1 failure
+
+    for criterion in criteria_list:
+        # Get top-k retrieved chunks for the criterion
+        top_chunks_info = relevant_chunks_dict.get(criterion, [])
+        combined_text = "\n\n".join([chunk[2] for chunk in top_chunks_info])
+
+        print(f"\n--- Auditing Stage 2 Criterion ---\n{criterion}\n")
+
+        prompt = f"""
+        You are an auditor for IPP or IPPFA. 
+        You are tasked with auditing a conversation between a telemarketer from IPP or IPPFA and a customer. 
+        The audit evaluates whether the telemarketer adhered to a specific criterion from a predefined list.
+
+        ### Instruction:
+        - Review the provided conversation transcript.
+        - Assess the telemarketer's compliance **only for the following single criterion**:
+            "{criterion}"
+        - Quote specific reasons from the conversation to justify the result.
+        - Only mark a criterion as "Pass" if you are very confident (i.e., nearly certain) based on clear and specific evidence.
+        - If not applicable, you may return "Not Applicable".
+
+        ### Input Transcript:
+        {combined_text}
+
+        ### Response Format (JSON):
+        [
+            {{
+                "Criteria": "{criterion}",
+                "Reason": "<Your explanation>",
+                "Result": "Pass" or "Fail" or "Not Applicable"
+            }}
+        ]
+        """
+
+        response = client.chat.completions.create(
+            model=model_engine,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+
+        result_text = response.choices[0].message.content
+        cleaned = (
+            result_text.replace("```json", "")
+            .replace("```", "")
+            .replace("### Response:", "")
+            .strip()
+        )
+
+        try:
+            result_json = json.loads(cleaned)
+        except Exception as e:
+            print(f"[!] JSON parsing error for criterion:\n{criterion}")
+            print("Raw output:\n", result_text)
+            raise e
+
+        output_results.append(result_json[0])
+
+        # Stage 2 fails immediately on any "Fail"
+        if result_json[0]["Result"] == "Fail":
+            fail_count += 1
+    
+    # Allow up to 1 fail
+    if fail_count > 1:
+        overall_result = "Fail"
+
+    final_output = {
+        "Stage 2": output_results,
+        "Overall Result": overall_result
+    }
+
+    return final_output
+
+
+
+def combine_stage_results(stage_1_result: dict, stage_2_result: dict | None = None) -> dict:
+    """
+    Combines the results from stage_1_criteria_audit and stage_2_criteria_audit
+    to match the structure of the original LLM_audit() output.
+    """
+    combined_result = {
+        "Stage 1": stage_1_result["Stage 1"]
+    }
+
+    # If Stage 2 was executed, include it
+    if stage_2_result is not None and "Stage 2" in stage_2_result:
+        combined_result["Stage 2"] = stage_2_result["Stage 2"]
+        combined_result["Overall Result"] = stage_2_result["Overall Result"]
+    else:
+        combined_result["Overall Result"] = stage_1_result["Overall Result"]
+
+    return combined_result
+
 # def LLM_audit_from_rag(retrieved_chunks_1: dict, client):
 #     output_dict = {"Stage 1": []}
 #     overall_result = "Pass"
@@ -2287,25 +2499,28 @@ def main():
                                         text, language_code = speech_to_text(audio_file)
                                         if audit_option == "OpenAI (Recommended)":
                                             
-                                            LLM_audit(text)
+                                            # result = LLM_audit(text) old version
                                             
                                             # ----------------------VectorRAG--------------------------
+                                            # Splitting
                                             chunks = semantic_chunk_transcript(text)
                                             for i, chunk in enumerate(chunks):
                                                 print(f"\n--- Chunk {i+1} ---\n{chunk}")
-                                                
+                                            
+                                            # Embedding and Vector Storing
                                             store_chunks_as_vector_index(chunks)
                                             
+                                            # Retrieval 
+                                            # For retrieval, not prompting
                                             stage_1_criteria = [
-                                                "Did the telemarketer introduced themselves by stating their name?",
-                                                "Did the telemarketer state that they are calling from one of these ['IPP', 'IPPFA', 'IPP Financial Advisors'] without mentioning on behalf of any other insurers?",
-                                                "Did the customer ask how the telemarketer obtained their contact details?",
+                                                "Did the telemarketer introduced themselves by stating their name? (Usually followed by 'calling from')",
+                                                "Did the telemarketer state that they are calling from one of these ['IPP', 'IPPFA', 'IPP Financial Advisors'] without mentioning on behalf of any other insurers?(accept anyone one of the 3 name given)",
+                                                "Did the customer asked how did the telemarketer obtained their contact details? If they asked, did telemarketer mentioned who gave the customer's details to him? (Not Applicable if customer didn't)",
                                                 "Did the telemarketer specify the types of financial services offered?",
-                                                "Did the telemarketer offer to set up a meeting or Zoom session?",
-                                                "Did the telemarketer state that products have high returns or capital guarantee?",
+                                                "Did the telemarketer offered to set up a meeting or zoom session with the consultant for the customer? (Try to specify the date and location if possible)",
+                                                "Did the telemarketer stated that products have high returns, guaranteed returns, or capital guarantee? (Fail if they did, Pass if they didn't)",
                                                 "Was the telemarketer polite and professional in their conduct?"
                                             ]
-
                                             retrieved_chunks_1 = retrieve_relevant_chunks(stage_1_criteria)
 
                                             # Print results
@@ -2315,22 +2530,29 @@ def main():
                                                 for chunk_index, score, text in chunks_info:
                                                     print(f"[Chunk {chunk_index} | Score: {score:.4f}]\n{text}\n")
                                             
-                                            final_audit_result = LLM_audit_from_rag(retrieved_chunks_1, client)
+                                            stage_1_result = stage_1_criteria_audit(retrieved_chunks_1)
+                                            print(json.dumps(stage_1_result, indent=2))
                                             
+                                            stage_2_result = False # initialzie before just in case stage 1 fails and stage 2 doesn't execute at all
+                                            # After Stage 1 has passed
+                                            if stage_1_result["Overall Result"] == "Pass":
+                                                stage_2_criteria = [
+                                                    "Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?",
+                                                    "Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?",
+                                                    "Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)? (Fail if they did, Pass if they didn't)"
+                                                ]
+                                                retrieved_chunks_2 = retrieve_relevant_chunks(stage_2_criteria)
+                                                # Print results
+                                                for i, (criterion, chunks_info) in enumerate(retrieved_chunks_2.items(), 1):
+                                                    print(f"\n--- Stage 2 Criterion {i} ---")
+                                                    print(f"{criterion}\n")
+                                                    for chunk_index, score, text in chunks_info:
+                                                        print(f"[Chunk {chunk_index} | Score: {score:.4f}]\n{text}\n")
+                                                        
+                                                stage_2_result = stage_2_criteria_audit(stage_1_result, retrieved_chunks_2)
+                                                print(json.dumps(stage_2_result, indent=2))
                                                 
-                                            # stage_2_criteria = [
-                                            #     "Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?"
-                                            #     "Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?"
-                                            #     "Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)?"
-                                            # ]
-
-                                            # retrieved_chunks_2 = retrieve_relevant_chunks(stage_2_criteria)
-
-                                            # # Print results
-                                            # for i, (criterion, chunks) in enumerate(retrieved_chunks_2.items(), 1):
-                                            #     print(f"\n--- Stage 2 Criterion {i} ---")
-                                            #     print(f"{criterion}\n")
-                                            #     print(chunks)
+                                            result = combine_stage_results(stage_1_result, stage_2_result)
                                             
                                             #-------------------------------------------------------------------------
                                             
