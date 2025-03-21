@@ -77,6 +77,11 @@ from llama_index.core import VectorStoreIndex, Document
 from llama_index.llms.openai import OpenAI as LlamaOpenAI
 from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.storage.storage_context import StorageContext
+from llama_index.core import load_index_from_storage
+from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.retrievers import VectorIndexRetriever
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 import openai
 
 #testestest
@@ -1241,7 +1246,7 @@ def store_chunks_as_vector_index(
 
     # Persist it to disk
     os.makedirs(persist_dir, exist_ok=True)
-    vector_index.storage_context.persist(persist_dir=persist_dir)
+    # vector_index.storage_context.persist(persist_dir=persist_dir) # UNCOMMENT WHEN WANT TO MAKE PERSISTENT
 
     print(f"Vector store persisted at: {persist_dir}")
     print(f"🧠 Total Chunks Stored: {len(documents)}")
@@ -1250,6 +1255,192 @@ def store_chunks_as_vector_index(
         preview = doc.text.strip().replace("\n", " ")[:100]
         print(f"Chunk {i+1}: {preview}...")
     
+    
+def retrieve_relevant_chunks(
+    stage_1_criteria: list[str],
+    persist_dir: str = "./storage_mini",
+    embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    top_k: int = 3,
+) -> dict[str, list[tuple[int, float, str]]]:
+    """
+    Retrieves the top-k most relevant transcript chunks for each Stage 1 criterion.
+
+    Parameters:
+        stage_1_criteria (list[str]): List of criteria as questions or prompts.
+        persist_dir (str): Directory where the vector index is stored.
+        embed_model_name (str): HuggingFace model name.
+        top_k (int): Number of top matching chunks to retrieve per criterion.
+
+    Returns:
+        dict[str, str]: Mapping from each criterion to a raw text string of the top-k relevant chunks.
+    """
+    print("Loading vector index for retrieval...")
+
+    # Load the embedding model
+    embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+
+    # Load stored index
+    storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+    vector_index = load_index_from_storage(storage_context)
+
+    # Load stored documents
+    documents = list(vector_index.docstore.docs.values())
+    chunk_texts = [doc.text for doc in documents]
+
+    # Embed all stored chunks once
+    chunk_embeddings = embed_model.get_text_embedding_batch(chunk_texts)
+
+    results = {}
+
+    for criterion in stage_1_criteria:
+        print(f"\n🔍 Retrieving for: {criterion}")
+        
+        # Embed the criterion
+        criterion_embedding = embed_model.get_text_embedding(criterion)
+
+        # Compute cosine similarity
+        similarities = cosine_similarity(
+            [criterion_embedding], chunk_embeddings
+        )[0]  # shape: (num_chunks,)
+
+        # Get top-k indices
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+
+        # Get top-k chunk texts
+        top_chunks = [chunk_texts[i] for i in top_indices]
+        top_chunks_info = [
+            (i, float(similarities[i]), chunk_texts[i]) for i in top_indices
+        ]
+        combined_text = "\n\n".join(top_chunks)
+
+        # Store result
+        results[criterion] = top_chunks_info
+
+    return results
+
+# def LLM_audit_from_rag(retrieved_chunks_1: dict, client):
+#     output_dict = {"Stage 1": []}
+#     overall_result = "Pass"
+
+#     model_engine = "gpt-4o-mini"
+
+#     # Stage 1 Evaluation
+#     for i, (criterion, chunks_info) in enumerate(retrieved_chunks_1.items(), 1):
+#         # Combine top-3 relevant chunks for this criterion
+#         combined_dialog = "\n\n".join([chunk for _, _, chunk in chunks_info])
+
+#         prompt = f"""
+#         You are an auditor for IPP or IPPFA. 
+#         You are tasked with auditing a conversation between a telemarketer from IPP or IPPFA and a customer. 
+#         The audit evaluates whether the telemarketer adhered to a specific criterion during the dialogue.
+
+#         ### Instruction:
+#             - Review the provided conversation transcript and assess the telemarketer's compliance based on the criterion below. 
+#             - Provide a detailed assessment, including quoting reasons from the conversation and a result status.
+#             - Only mark a criterion as "Pass" if you are very confident (i.e., nearly certain) based on clear and specific evidence from the conversation. 
+#             - Do not include the text in brackets () as part of the criteria during the response.
+#             - If there is no clear evidence, mark it as "Fail".
+
+#         Criterion:
+#             {criterion}
+
+#         ### Response Format:
+#         {{
+#             "Criteria": "...",
+#             "Reason": "...",
+#             "Result": "Pass/Fail/Not Applicable"
+#         }}
+
+#         ### Transcript:
+#         {combined_dialog}
+#         """
+
+#         response = client.chat.completions.create(
+#             model=model_engine,
+#             messages=[{'role': 'user', 'content': prompt}],
+#             temperature=0
+#         )
+
+#         result = response.choices[0].message.content
+#         result = result.replace("```json", "").replace("```", "").strip()
+
+#         try:
+#             result_json = json.loads(result)
+#         except:
+#             # Try formatting if needed
+#             result = format_json_with_line_break(result)
+#             result_json = json.loads(result)
+
+#         output_dict["Stage 1"].append(result_json)
+
+#         if result_json["Result"] == "Fail":
+#             overall_result = "Fail"
+#             output_dict["Overall Result"] = "Fail"
+#             print(f"\n❌ Failed at Stage 1 - Criterion {i}: {criterion}")
+#             return output_dict  # Exit early if Stage 1 fails
+
+#     # Proceed to Stage 2 only if Stage 1 is fully passed
+#     print("\n✅ Passed Stage 1 - Proceeding to Stage 2...")
+
+#     output_dict["Overall Result"] = "Pass"
+#     stage_2_prompt = """
+#     You are an auditor for IPP or IPPFA. 
+#     You are tasked with auditing a conversation between a telemarketer from IPP or IPPFA and a customer. 
+#     The audit evaluates whether the telemarketer adhered to the Stage 2 criteria during the dialogue.
+
+#     ### Instruction:
+#         - Review the provided conversation transcript and assess the telemarketer's compliance based on the criteria outlined below. 
+#         - For each criterion, provide a detailed assessment, including quoting reasons from the conversation and a result status.
+#         - Do not include words in brackets during the evaluation.
+#         - Only mark a criterion as "Pass" if you are nearly certain based on clear evidence from the transcript.
+
+#         Audit Criteria:
+#             1. Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?
+#             2. Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?
+#             3. Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)? (Fail if they did, Pass if they didn't)
+
+#         ### Response Format:
+#         [
+#             {{
+#                 "Criteria": "...",
+#                 "Reason": "...",
+#                 "Result": "Pass/Fail/Not Applicable"
+#             }},
+#             ...
+#         ]
+
+#     ### Transcript:
+#     %s
+#     """ % ("\n\n".join([chunk for chunks in retrieved_chunks_1.values() for _, _, chunk in chunks]))
+
+#     response = client.chat.completions.create(
+#         model=model_engine,
+#         messages=[{'role': 'user', 'content': stage_2_prompt}],
+#         temperature=0
+#     )
+
+#     stage_2_result = response.choices[0].message.content
+#     stage_2_result = stage_2_result.replace("```json", "").replace("```", "").strip()
+
+#     try:
+#         stage_2_result = json.loads(stage_2_result)
+#     except:
+#         stage_2_result = format_json_with_line_break(stage_2_result)
+#         stage_2_result = json.loads(stage_2_result)
+
+#     output_dict["Stage 2"] = stage_2_result
+
+#     # Evaluate Stage 2 overall result
+#     for res in stage_2_result:
+#         if res["Result"] == "Fail":
+#             output_dict["Overall Result"] = "Fail"
+#             break
+
+#     import gc
+#     gc.collect()
+#     torch.cuda.empty_cache()
+
+#     return output_dict
 
 def LLM_audit(dialog):
     stage_1_prompt = """
@@ -2095,12 +2286,53 @@ def main():
                                     if transcribe_option == "OpenAI (Recommended)":   
                                         text, language_code = speech_to_text(audio_file)
                                         if audit_option == "OpenAI (Recommended)":
-                                            result = LLM_audit(text)
+                                            
+                                            LLM_audit(text)
+                                            
+                                            # ----------------------VectorRAG--------------------------
                                             chunks = semantic_chunk_transcript(text)
                                             for i, chunk in enumerate(chunks):
                                                 print(f"\n--- Chunk {i+1} ---\n{chunk}")
                                                 
                                             store_chunks_as_vector_index(chunks)
+                                            
+                                            stage_1_criteria = [
+                                                "Did the telemarketer introduced themselves by stating their name?",
+                                                "Did the telemarketer state that they are calling from one of these ['IPP', 'IPPFA', 'IPP Financial Advisors'] without mentioning on behalf of any other insurers?",
+                                                "Did the customer ask how the telemarketer obtained their contact details?",
+                                                "Did the telemarketer specify the types of financial services offered?",
+                                                "Did the telemarketer offer to set up a meeting or Zoom session?",
+                                                "Did the telemarketer state that products have high returns or capital guarantee?",
+                                                "Was the telemarketer polite and professional in their conduct?"
+                                            ]
+
+                                            retrieved_chunks_1 = retrieve_relevant_chunks(stage_1_criteria)
+
+                                            # Print results
+                                            for i, (criterion, chunks_info) in enumerate(retrieved_chunks_1.items(), 1):
+                                                print(f"\n--- Stage 1 Criterion {i} ---")
+                                                print(f"{criterion}\n")
+                                                for chunk_index, score, text in chunks_info:
+                                                    print(f"[Chunk {chunk_index} | Score: {score:.4f}]\n{text}\n")
+                                            
+                                            final_audit_result = LLM_audit_from_rag(retrieved_chunks_1, client)
+                                            
+                                                
+                                            # stage_2_criteria = [
+                                            #     "Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?"
+                                            #     "Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?"
+                                            #     "Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)?"
+                                            # ]
+
+                                            # retrieved_chunks_2 = retrieve_relevant_chunks(stage_2_criteria)
+
+                                            # # Print results
+                                            # for i, (criterion, chunks) in enumerate(retrieved_chunks_2.items(), 1):
+                                            #     print(f"\n--- Stage 2 Criterion {i} ---")
+                                            #     print(f"{criterion}\n")
+                                            #     print(chunks)
+                                            
+                                            #-------------------------------------------------------------------------
                                             
                                             if result["Overall Result"] == "Fail":
                                                 status = "<span style='color: red;'> (FAIL)</span>"
