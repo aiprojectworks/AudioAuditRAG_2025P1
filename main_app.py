@@ -21,7 +21,7 @@ import torch
 import os
 import bcrypt
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 #LLM import
 # from langchain.embeddings import LlamaCppEmbeddings
 # from langchain_community.llms import LlamaCpp
@@ -236,10 +236,20 @@ def admin_interface():
     st.title("Admin Panel")
 
     st.subheader("Event Log")
+
+    search_query = st.text_input("Search logs", "")  # Search bar for keyword filtering
+
+    # Date filtering UI
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Start Date", datetime.now().date() - timedelta(days=7))  # Default is 7 days ago
+    with col2:
+        end_date = st.date_input("End Date", datetime.now().date())  # Default is today's date
+
     log_container = st.container()
     with log_container:
-        # Read and display the log content
-        log_content = read_log_file()
+        # Read and display the log content based on date filter and search query
+        log_content = read_log_file(start_date=start_date, end_date=end_date, search_query=search_query)
         log_content = log_content.replace('\n', '<br>')
 
         # Display the log with custom styling
@@ -1466,28 +1476,49 @@ def handle_combined_download(data_text, data_json, data_csv, file_name_prefix):
     return buffer
 
 
-def read_log_file(log_file='logfile.txt'):
+def read_log_file(log_file='logfile.txt', start_date=None, end_date=None, search_query=""):
     if os.path.exists(log_file):
         with open(log_file, 'r') as file:
             log_content = file.readlines()
-        # Reverse the log entries
+        
+        # Reverse log entries (newest first)
         log_content = log_content[::-1]
-        if log_content:
-            for i in range(len(log_content)):
-                log_entry = log_content[i].strip()
+        filtered_logs = []
 
-                if "ADMIN" in log_entry:  
-                    log_content[i] = f"<span style='color: yellow;'>{log_entry}</span>\n"  # 🟡 Admin Log
-                
-                elif "ERROR" in log_entry or "NOT" in log_entry or "FAIL" in log_entry:  
-                    log_content[i] = f"<span style='color: red;'>{log_entry}</span>\n"  # 🔴 Error Log
-                
-                else:  
-                    log_content[i] = f"<span style='color: white;'>{log_entry}</span>\n"  # ⚪ Default User Log
+        for log_entry in log_content:
+            log_entry = log_entry.strip()
 
-            return ''.join(log_content)
-        else:
-            return "LOG FILE IS EMPTY."
+            # Filter by search query first
+            if search_query.lower() not in log_entry.lower():
+                continue
+
+            log_date = None
+            # Extract date from log assuming format: "YYYY-MM-DD HH:MM:SS - Message"
+            parts = log_entry.split(" - ")
+            if len(parts) > 1:
+                try:
+                    log_date = datetime.strptime(parts[0], "%Y-%m-%d %H:%M:%S").date()
+                except ValueError:
+                    pass  # Ignore lines that don’t match the expected format
+
+            # If dates are not selected (i.e., default dates), show all logs without filtering by date
+            if start_date and end_date:
+                if log_date and not (start_date <= log_date <= end_date):
+                    continue  # Skip logs that are outside the selected date range
+
+            # Apply color coding
+            if "ADMIN" in log_entry:  
+                log_entry = f"<span style='color: yellow;'>{log_entry}</span>\n"  # 🟡 Admin Log
+            
+            elif "ERROR" in log_entry or "NOT" in log_entry or "FAIL" in log_entry:  
+                log_entry = f"<span style='color: red;'>{log_entry}</span>\n"  # 🔴 Error Log
+            
+            else:  
+                log_entry = f"<span style='color: white;'>{log_entry}</span>\n"  # ⚪ Default Log
+
+            filtered_logs.append(log_entry)
+
+        return ''.join(filtered_logs) if filtered_logs else "NO MATCHING LOG ENTRIES FOUND."
     else:
         return "LOG FILE DOES NOT EXIST."
     
