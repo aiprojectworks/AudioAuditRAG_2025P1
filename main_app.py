@@ -58,6 +58,25 @@ from typing import Tuple
 # import streamlit_js_eval
 # from streamlit_js_eval import streamlit_js_eval
 
+# VectorRAG imports:
+from IPython.display import display
+import ipywidgets as widgets
+from llama_index.core import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    StorageContext,
+    ServiceContext,
+    load_index_from_storage
+)
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.llms.groq import Groq
+from llama_index.core import Settings
+from llama_index.core.node_parser import SemanticSplitterNodeParser
+from llama_index.core import VectorStoreIndex, Document
+from llama_index.llms import OpenAI
+from llama_index.node_parser import SimpleNodeParser
+from llama_index.core.storage.storage_context import StorageContext
 
 #testestest
 # from pydub.playback import play
@@ -92,7 +111,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 st.set_page_config(page_title="IPPFA Trancribe & Audit",
                             page_icon=":books:")
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
 # deepgram = DeepgramClient(st.secrets["DEEPGRAM_API_KEY"])
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -1081,8 +1100,105 @@ def groq_LLM_audit(dialog):
     return output_dict
         
 
-    
+# Vector RAG splitting and embedding step
+def semantic_chunk_transcript(
+    raw_transcript: str,
+    embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    similarity_threshold: float = 0.90,
+    overlap_turns: int = 1,
+    min_turns_per_chunk: int = 3,
+    max_turns_per_chunk: int = 6,
+) -> list[str]:
+    print("Loading Chunks")
+    """
+    Takes in raw transcript, performs semantic chunking using LlamaIndex, embeds using HuggingFace's sentence-transformer, and ensures speaker labels and turns are preserved in mini-dialogue chunks.
 
+    Parameters:
+        raw_transcript (str): Full diarized transcript text
+        embed_model_name (str): HF embedding model for semantic chunking
+        similarity_threshold (float): Cosine similarity threshold for chunk splits
+        overlap_turns (int): Number of speaker turns to overlap between chunks
+        min_turns_per_chunk (int): Minimum number of speaker turns per chunk
+        max_turns_per_chunk (int): Maximum number of speaker turns per chunk
+
+    Returns:
+        List[str]: List of processed dialogue chunks (speaker-aware)
+    """
+    
+    def extract_speaker(line: str) -> str:
+        """Extracts any speaker label at the start of a line, ending with a colon."""
+        match = re.match(r"^([^:]+):", line)
+        return match.group(1).strip() if match else ""
+
+    # Step 1: Create a Document object
+    document = Document(text=raw_transcript)
+
+    # Step 2: Create embedding model
+    embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+
+    # Step 3: Initialize Semantic Chunker
+    chunker = SemanticSplitterNodeParser(
+        embed_model=embed_model,
+        similarity_threshold=similarity_threshold,
+    )
+
+    # Step 4: Chunk the document semantically
+    nodes = chunker.get_nodes_from_documents([document])
+    lines = []
+    for node in nodes:
+        for line in node.text.strip().split("\n"):
+            clean_line = line.strip()
+            if clean_line:
+                speaker = extract_speaker(clean_line)
+                if speaker:
+                    last_detected_speaker = speaker
+                else:
+                    # Assign previous speaker if not detected
+                    speaker = last_detected_speaker
+                    clean_line = f"{speaker}: {clean_line}"
+                lines.append((speaker, clean_line))
+                
+    # Debug print to verify speaker detection
+    for speaker, line in lines:
+        print(f"[{speaker}] {line}")
+
+    # Step 5: Group speaker turns into mini-dialog chunks
+    chunks = []
+    i = 0
+    prev_last_speaker = ""
+    
+    while i < len(lines):
+        chunk_lines = []
+
+        # Collect up to max_turns_per_chunk speaker turns
+        for j in range(i, min(i + max_turns_per_chunk, len(lines))):
+            chunk_lines.append(lines[j])
+
+        # Fix speaker label if chunk starts mid-speaker
+        if prev_last_speaker:
+            first_speaker, first_line = chunk_lines[0]
+            if first_speaker == "" and prev_last_speaker:
+                # Prepend the speaker label manually
+                chunk_lines[0] = (
+                    prev_last_speaker,
+                    f"{prev_last_speaker}: {first_line}"
+                )
+
+        # Save the last speaker for the next round
+        last_speaker = chunk_lines[-1][0]
+        prev_last_speaker = last_speaker
+
+        # Add chunk to result
+        chunk_text = "\n".join([line for _, line in chunk_lines])
+        chunks.append(chunk_text)
+
+        # Move forward but leave overlap
+        i += max(min_turns_per_chunk, len(chunk_lines) - overlap_turns)
+        
+    for speaker, line in lines:
+        print(f"[{speaker}] {line}")    
+
+    return chunks
 
 
 def LLM_audit(dialog):
@@ -1930,6 +2046,9 @@ def main():
                                         text, language_code = speech_to_text(audio_file)
                                         if audit_option == "OpenAI (Recommended)":
                                             result = LLM_audit(text)
+                                            chunks = semantic_chunk_transcript(text)
+                                            for i, chunk in enumerate(chunks):
+                                                print(f"\n--- Chunk {i+1} ---\n{chunk}")
                                             if result["Overall Result"] == "Fail":
                                                 status = "<span style='color: red;'> (FAIL)</span>"
                                             else:
