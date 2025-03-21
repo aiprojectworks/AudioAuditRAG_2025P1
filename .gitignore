@@ -4,3 +4,4 @@ admin/*
 logfile.csv
 logfile.txt
 __pycache__
+storage_mini

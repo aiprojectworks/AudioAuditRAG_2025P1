@@ -74,9 +74,10 @@ from llama_index.llms.groq import Groq
 from llama_index.core import Settings
 from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.core import VectorStoreIndex, Document
-from llama_index.llms import OpenAI
-from llama_index.node_parser import SimpleNodeParser
+from llama_index.llms.openai import OpenAI as LlamaOpenAI
+from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.storage.storage_context import StorageContext
+import openai
 
 #testestest
 # from pydub.playback import play
@@ -113,7 +114,7 @@ st.set_page_config(page_title="IPPFA Trancribe & Audit",
                             page_icon=":books:")
 groq_client = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
 # deepgram = DeepgramClient(st.secrets["DEEPGRAM_API_KEY"])
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 def is_admin(username: str) -> bool:
     """Check if user has admin role"""
@@ -1200,6 +1201,55 @@ def semantic_chunk_transcript(
 
     return chunks
 
+#Vector Storing and Embedding
+def store_chunks_as_vector_index(
+    chunks: list[str],
+    persist_dir: str = "./storage_mini",
+    embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    openai_model: str = "gpt-4o-mini"
+):
+    """
+    Stores dialogue chunks as a vector index using HuggingFace embeddings and OpenAI LLM for RAG.
+
+    Parameters:
+        chunks (list[str]): Dialogue chunks returned from semantic_chunk_transcript().
+        persist_dir (str): Path to store the vector index.
+        embed_model_name (str): HuggingFace model name for embedding.
+        openai_model (str): OpenAI model name (e.g., gpt-3.5-turbo).
+    """
+
+    print("Creating Vector Index...")
+
+    # Convert chunks into LlamaIndex Document objects
+    documents = [Document(text=chunk) for chunk in chunks]
+
+    # Load embedding and LLM
+    embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+    llm = LlamaOpenAI(model=openai_model)
+
+    # Create node parser (simpler than SemanticSplitter here)
+    node_parser = SimpleNodeParser()
+
+    # Build the vector index
+    vector_index = VectorStoreIndex.from_documents(
+        documents,
+        embed_model=embed_model,
+        llm=llm,
+        node_parser=node_parser,
+        show_progress=True,
+    )
+
+    # Persist it to disk
+    os.makedirs(persist_dir, exist_ok=True)
+    vector_index.storage_context.persist(persist_dir=persist_dir)
+
+    print(f"Vector store persisted at: {persist_dir}")
+    print(f"🧠 Total Chunks Stored: {len(documents)}")
+    print("\n--- Stored Chunks Preview ---")
+    for i, doc in enumerate(documents):
+        preview = doc.text.strip().replace("\n", " ")[:100]
+        print(f"Chunk {i+1}: {preview}...")
+    
 
 def LLM_audit(dialog):
     stage_1_prompt = """
@@ -2049,6 +2099,9 @@ def main():
                                             chunks = semantic_chunk_transcript(text)
                                             for i, chunk in enumerate(chunks):
                                                 print(f"\n--- Chunk {i+1} ---\n{chunk}")
+                                                
+                                            store_chunks_as_vector_index(chunks)
+                                            
                                             if result["Overall Result"] == "Fail":
                                                 status = "<span style='color: red;'> (FAIL)</span>"
                                             else:
