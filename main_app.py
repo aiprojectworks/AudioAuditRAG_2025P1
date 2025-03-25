@@ -536,22 +536,21 @@ def save_audio_file(audio_bytes, name):
             # Sanitize filename and construct full path
             name = os.path.basename(name)
             base_name, ext = os.path.splitext(name)  
-            short_name = base_name[:20]  
-            new_file_name = os.path.join(user_folder, f"{short_name}{ext}")
+            short_name = base_name[:20]  # Limit filename to avoid long names
+            file_path = os.path.join(user_folder, f"{short_name}{ext}")
 
-            # Ensure unique file name
-            counter = 1
-            while os.path.exists(new_file_name):
-                print(f"File already exists: {new_file_name}")
-                return os.path.abspath(new_file_name)
+            # If file already exists, delete it to replace with the new one
+            if os.path.exists(file_path):
+                print(f"Replacing existing file: {file_path}")
+                os.remove(file_path)
 
-            # Save file
-            with open(new_file_name, "wb") as f:
+            # Save the new file
+            with open(file_path, "wb") as f:
                 f.write(audio_bytes)
 
             # Ensure file is actually written
             time.sleep(1)  
-            full_path = os.path.abspath(new_file_name)
+            full_path = os.path.abspath(file_path)
 
             if os.path.exists(full_path):  
                 print(f"File successfully saved at: {full_path}")
@@ -563,10 +562,6 @@ def save_audio_file(audio_bytes, name):
     except Exception as e:
         print(f"Failed to save file: {e}")
         return None
-        
-    except Exception as e:
-        print(f"Failed to save file: {e}")
-        return None  # Explicitly return None on failure
 
 def delete_mp3_files(directory):
     # Construct the search pattern for MP3 files
