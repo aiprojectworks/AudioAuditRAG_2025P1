@@ -536,13 +536,17 @@ def save_audio_file(audio_bytes, name):
             # Sanitize filename and construct full path
             name = os.path.basename(name)
             base_name, ext = os.path.splitext(name)  
-            short_name = base_name[:20]  # Limit filename to avoid long names
+            short_name = base_name[:20]  # Limit filename length
             file_path = os.path.join(user_folder, f"{short_name}{ext}")
 
-            # If file already exists, delete it to replace with the new one
+            # 🔄 If file exists, delete it and remove from session state
             if os.path.exists(file_path):
                 print(f"Replacing existing file: {file_path}")
                 os.remove(file_path)
+
+                # Ensure UI updates by removing old reference
+                if name in st.session_state.uploaded_files:
+                    del st.session_state.uploaded_files[name]
 
             # Save the new file
             with open(file_path, "wb") as f:
@@ -554,6 +558,10 @@ def save_audio_file(audio_bytes, name):
 
             if os.path.exists(full_path):  
                 print(f"File successfully saved at: {full_path}")
+
+                # ✅ Update session state
+                st.session_state.uploaded_files[name] = full_path
+
                 return full_path  
             else:
                 print(f"File not found after writing: {full_path}")
@@ -2399,6 +2407,10 @@ def main():
                                 st.error(f"Error loading audio file: {e}")
                                 create_log_entry(f"ERROR LOADING AUDIO FILE: {e}")  
 
+                        # Ensure uploaded_files session state exists
+                        if "uploaded_files" not in st.session_state:
+                            st.session_state.uploaded_files = {}
+
                         # Display Uploaded Audio Files
                         if st.session_state.uploaded_files:
                             st.subheader("Uploaded Audio Files Player")
@@ -2417,12 +2429,25 @@ def main():
                         #     st.session_state.audio_files = [f for f in st.session_state.audio_files if not f.endswith(file_name)]
                         #     st.session_state.file_change_detected = True
 
-                        # Update session state with the current file list if a change was detected
-                        if st.session_state.file_change_detected:
-                            st.session_state.uploaded_files = current_files
+                        # 🔍 Ensure session state tracks only the latest files
+                        username = st.session_state.get("username", "default_user")
+                        user_folder = os.path.join(".", username)
+                        current_files = set(os.listdir(user_folder))  # Get the latest files in the folder
+
+                        # Remove files that no longer exist in the folder
+                        removed_files = [f for f in list(st.session_state.uploaded_files.keys()) if f not in current_files]
+                        if removed_files:  # Only proceed if there are files to remove
+                            for file_name in removed_files:
+                                print(f"Removing file from session state: {file_name}")
+                                del st.session_state.uploaded_files[file_name]
+                            
+                            st.session_state.file_change_detected = True
+
+                        # 🔄 Update session state with the latest file list
+                        if st.session_state.get("file_change_detected", False):
+                            st.session_state.uploaded_files = {f: os.path.join(user_folder, f) for f in current_files}
                             st.session_state.file_change_detected = False
 
-                    
                     audio_files = list(st.session_state.audio_files)
                     # st.write(audio_files)
                     # print(st.session_state.audio_files)
