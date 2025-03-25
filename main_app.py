@@ -1129,20 +1129,20 @@ def semantic_chunk_transcript(
     max_turns_per_chunk: int = 6,
 ) -> list[str]:
     print("Loading Chunks")
-    """
-    Takes in raw transcript, performs semantic chunking using LlamaIndex, embeds using HuggingFace's sentence-transformer, and ensures speaker labels and turns are preserved in mini-dialogue chunks.
+    
+    # Takes in raw transcript, performs semantic chunking using LlamaIndex, embeds using HuggingFace's sentence-transformer, and ensures speaker labels and turns are preserved in mini-dialogue chunks.
 
-    Parameters:
-        raw_transcript (str): Full diarized transcript text
-        embed_model_name (str): HF embedding model for semantic chunking
-        similarity_threshold (float): Cosine similarity threshold for chunk splits
-        overlap_turns (int): Number of speaker turns to overlap between chunks
-        min_turns_per_chunk (int): Minimum number of speaker turns per chunk
-        max_turns_per_chunk (int): Maximum number of speaker turns per chunk
+    # Parameters:
+    #     raw_transcript (str): Full diarized transcript text
+    #     embed_model_name (str): HF embedding model for semantic chunking
+    #     similarity_threshold (float): Cosine similarity threshold for chunk splits
+    #     overlap_turns (int): Number of speaker turns to overlap between chunks
+    #     min_turns_per_chunk (int): Minimum number of speaker turns per chunk
+    #     max_turns_per_chunk (int): Maximum number of speaker turns per chunk
 
-    Returns:
-        List[str]: List of processed dialogue chunks (speaker-aware)
-    """
+    # Returns:
+    #     List[str]: List of processed dialogue chunks (speaker-aware)
+    
     
     def extract_speaker(line: str) -> str:
         """Extracts any speaker label at the start of a line, ending with a colon."""
@@ -1226,15 +1226,15 @@ def store_chunks_as_vector_index(
     embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     openai_model: str = "gpt-4o-mini"
 ):
-    """
-    Stores dialogue chunks as a vector index using HuggingFace embeddings and OpenAI LLM for RAG.
+    
+    # Stores dialogue chunks as a vector index using HuggingFace embeddings and OpenAI LLM for RAG.
 
-    Parameters:
-        chunks (list[str]): Dialogue chunks returned from semantic_chunk_transcript().
-        persist_dir (str): Path to store the vector index.
-        embed_model_name (str): HuggingFace model name for embedding.
-        openai_model (str): OpenAI model name (e.g., gpt-3.5-turbo).
-    """
+    # Parameters:
+    #     chunks (list[str]): Dialogue chunks returned from semantic_chunk_transcript().
+    #     persist_dir (str): Path to store the vector index.
+    #     embed_model_name (str): HuggingFace model name for embedding.
+    #     openai_model (str): OpenAI model name (e.g., gpt-3.5-turbo).
+    
 
     print("Creating Vector Index...")
 
@@ -2554,6 +2554,7 @@ def main():
                                 with st.spinner("Transcribing & Auditing In Progress..."):
                                     if transcribe_option == "OpenAI (Recommended)":   
                                         text, language_code = speech_to_text(audio_file)
+                                        full_transcript = text
                                         if audit_option == "OpenAI (Recommended)":
                                             
                                             # result = LLM_audit(text) old version
@@ -2656,9 +2657,9 @@ def main():
                                 st.write(f"({current} / {end})")
                                 st.markdown(status, unsafe_allow_html=True)
                             with tab1:
-                                st.write(text)
-                                all_text[audio_file[2:]] = text
-                                print(all_text)
+                                st.write(full_transcript)
+                                all_text[audio_file[2:]] = full_transcript
+                                # print(all_text)
                                 handle_download_text(count=audio_files.index(audio_file) ,data=text, file_name=f'{audio_file[2:].replace(".mp3", ".txt").replace(".wav", ".txt")}', mime='text/plain', log_message="Action: Text File Downloaded")
                             with tab2:
                                 st.write(result)
