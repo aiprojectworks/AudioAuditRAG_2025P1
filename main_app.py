@@ -524,34 +524,49 @@ def login_page():
 def save_audio_file(audio_bytes, name):
     try:
         if not audio_bytes:
+            print(f"Received {len(audio_bytes)} bytes for {name}")
             print(f"Error: No data in {name}")
             return None
 
         if name.lower().endswith(".wav") or name.lower().endswith(".mp3"):
-            user_folder = os.path.join(".", st.session_state.get("username", "default_user"))
+            username = st.session_state.get("username", "default_user")
+            user_folder = os.path.join(".", username)
             os.makedirs(user_folder, exist_ok=True)
 
-            # Sanitize filename and prepare path
+            # Sanitize filename and construct full path
             name = os.path.basename(name)
-            base_name, ext = os.path.splitext(name)
-            file_path = os.path.join(user_folder, name)
+            base_name, ext = os.path.splitext(name)  
+            short_name = base_name[:20]  
+            new_file_name = os.path.join(user_folder, f"{short_name}{ext}")
 
+            # Ensure unique file name
             counter = 1
-            while os.path.exists(file_path):
-                file_path = os.path.join(user_folder, f"{base_name}_{counter}{ext}")
-                counter += 1
+            while os.path.exists(new_file_name):
+                print(f"File already exists: {new_file_name}")
+                return os.path.abspath(new_file_name)
 
-            # Save the file
-            with open(file_path, "wb") as f:
+            # Save file
+            with open(new_file_name, "wb") as f:
                 f.write(audio_bytes)
 
-            file_path = os.path.abspath(file_path)
-            print(f"File saved successfully: {file_path}")
-            return file_path
+            # Ensure file is actually written
+            time.sleep(1)  
+            full_path = os.path.abspath(new_file_name)
+
+            if os.path.exists(full_path):  
+                print(f"File successfully saved at: {full_path}")
+                return full_path  
+            else:
+                print(f"File not found after writing: {full_path}")
+                return None
 
     except Exception as e:
         print(f"Failed to save file: {e}")
         return None
+        
+    except Exception as e:
+        print(f"Failed to save file: {e}")
+        return None  # Explicitly return None on failure
 
 def delete_mp3_files(directory):
     # Construct the search pattern for MP3 files
@@ -2305,7 +2320,7 @@ def main():
                         current_files = {file.name: file for file in uploaded_files}
 
                         # Determine files that have been added (newly uploaded files)
-                        added_files = [file_name for file_name in current_files]
+                        added_files = [file_name for file_name in current_files if file_name not in st.session_state.uploaded_files]
 
                         # Determine files that have been removed (no longer in the uploader)
                         files_to_remove = [
@@ -2338,29 +2353,27 @@ def main():
                                     st.error(f"Error deleting file {file_name}: {e}")
                                     create_log_entry(f"ERROR DELETING FILE {file_name}: {e}")                    
 
-                        # if uploaded_files:
-                        #     st.session_state.audio_files = []
-                        #     for file in uploaded_files:
-                        #         try:
-                        #             file.seek(0)
-                        #             audio_content = file.read()
-                        #             saved_path = save_audio_file(audio_content, file.name)
+                        if uploaded_files:
+                            for file in uploaded_files:
+                                try:
+                                    audio_content = file.read()
+                                    saved_path = save_audio_file(audio_content, file.name)
 
-                        #             if saved_path and os.path.exists(saved_path):  
-                        #                 saved_path = os.path.abspath(saved_path)  # Ensure absolute path
-                        #                 print(f"File saved at: {saved_path}")
+                                    if saved_path and os.path.exists(saved_path):  
+                                        saved_path = os.path.abspath(saved_path)  # Ensure absolute path
+                                        print(f"File saved at: {saved_path}")
                                         
-                        #                 if is_valid_mp3(saved_path):
-                        #                     if saved_path not in st.session_state.audio_files:  # Prevent duplication
-                        #                         st.session_state.audio_files.append(saved_path)
-                        #                         print(f"Added to session state: {saved_path}")
-                        #                 else:
-                        #                     st.error(f"{saved_path} is an Invalid MP3 or WAV File")
-                        #             else:
-                        #                 st.error("Failed to save uploaded file.")
-                        #         except Exception as e:
-                        #             st.error(f"Error loading audio file: {e}")
-                        #             print(f"Error loading audio file: {e}")
+                                        if is_valid_mp3(saved_path):
+                                            if saved_path not in st.session_state.audio_files:  # Prevent duplication
+                                                st.session_state.audio_files.append(saved_path)
+                                                print(f"Added to session state: {saved_path}")
+                                        else:
+                                            st.error(f"{saved_path} is an Invalid MP3 or WAV File")
+                                    else:
+                                        st.error("Failed to save uploaded file.")
+                                except Exception as e:
+                                    st.error(f"Error loading audio file: {e}")
+                                    print(f"Error loading audio file: {e}")
 
                         for file_name in added_files:
                             create_log_entry(f"USER: {st.session_state.username}, UPLOADED FILE: {file_name}")
@@ -2619,7 +2632,7 @@ def main():
                             with tab1:
                                 st.write(text)
                                 all_text[audio_file[2:]] = text
-                                print("-----------ALL TEXT-----------||||||||||||||||||", all_text)
+                                print(all_text)
                                 handle_download_text(count=audio_files.index(audio_file) ,data=text, file_name=f'{audio_file[2:].replace(".mp3", ".txt").replace(".wav", ".txt")}', mime='text/plain', log_message="Action: Text File Downloaded")
                             with tab2:
                                 st.write(result)
