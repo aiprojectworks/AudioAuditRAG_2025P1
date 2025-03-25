@@ -560,7 +560,7 @@ def save_audio_file(audio_bytes, name):
                 print(f"File successfully saved at: {full_path}")
 
                 # ✅ Update session state
-                st.session_state.uploaded_files[name] = full_path
+                st.session_state.uploaded_files[os.path.basename(file_path)] = full_path
 
                 return full_path  
             else:
@@ -2241,6 +2241,12 @@ def main():
                         type=["wav", "mp3"], 
                         accept_multiple_files=True
                     )
+                    # Check for duplicate filenames and show warn if have multiple duplicates
+                    if uploaded_files:
+                        filenames = [file.name for file in uploaded_files]
+                        duplicates = [name for name in set(filenames) if filenames.count(name) > 1]
+                        if duplicates:
+                            st.warning(f"⚠️ Duplicate file(s) detected: {', '.join(duplicates)}. Only the most recently uploaded version of each will be used.")
                     st.write("Uploaded Files:", uploaded_files)
                     
                     # Ensure session states exist
