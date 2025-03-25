@@ -1256,7 +1256,7 @@ def store_chunks_as_vector_index(
 
     # Persist it to disk
     os.makedirs(persist_dir, exist_ok=True)
-    # vector_index.storage_context.persist(persist_dir=persist_dir) # UNCOMMENT WHEN WANT TO MAKE PERSISTENT
+    vector_index.storage_context.persist(persist_dir=persist_dir) # UNCOMMENT WHEN WANT TO MAKE PERSISTENT
 
     print(f"Vector store persisted at: {persist_dir}")
     print(f"🧠 Total Chunks Stored: {len(documents)}")
