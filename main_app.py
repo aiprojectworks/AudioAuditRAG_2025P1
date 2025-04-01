@@ -77,12 +77,20 @@ from llama_index.core import VectorStoreIndex, Document
 from llama_index.llms.openai import OpenAI as LlamaOpenAI
 from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.storage.storage_context import StorageContext
-from llama_index.core import load_index_from_storage
+from llama_index.core import load_index_from_storage, VectorStoreIndex, SimpleDirectoryReader, StorageContext
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import VectorIndexRetriever
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import openai
+
+#GraphRAG imports
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core.node_parser import SentenceSplitter
+from neo4j import GraphDatabase
+import spacy
+from typing import List, Dict
+import re
 
 #testestest
 # from pydub.playback import play
@@ -1543,6 +1551,142 @@ def combine_stage_results(stage_1_result: dict, stage_2_result: dict | None = No
 
     return combined_result
 
+#-------------------------------------------GRAPH RAG-----------------------------------------------------
+
+# ---- NEO4J SETUP ----
+neo4j_uri = "neo4j+s://17fa9229.databases.neo4j.io"
+neo4j_user = "neo4j"
+neo4j_password = "_3bqmykUINv3gJ1HRakbROCWbccAfb1ioPSd6SGwGSc"
+driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+client = openai.OpenAI()
+
+nlp = spacy.load("en_core_web_sm")
+
+def parse_transcript_to_utterances(transcript: str):
+    """
+    Converts a raw speaker-labeled transcript into a list of {'speaker': ..., 'text': ...} dicts.
+    Assumes each utterance starts with 'SpeakerName:'.
+    """
+    utterances = []
+
+    # Regex to match speaker turns (e.g., "Telemarketer: blah blah")
+    pattern = re.compile(r"(Telemarketer|Customer):", re.IGNORECASE)
+
+    # Split transcript at each speaker turn marker
+    segments = pattern.split(transcript)
+
+    # Since regex split removes the delimiter (speaker), we stitch them back
+    for i in range(1, len(segments), 2):  # Start from index 1 (speaker name), step 2s
+        speaker = segments[i].strip()
+        text = segments[i + 1].strip() if i + 1 < len(segments) else ""
+        if text:
+            utterances.append({
+                "speaker": speaker,
+                "text": text
+            })
+
+    return utterances
+
+def llm_tagging(text: str) -> dict:
+    prompt = f"""
+You are an auditing assistant. Analyze the following customer service utterance and identify:
+1. The speaker's **intent** (e.g., introduce, reject, schedule_meeting, express_gratitude, follow_up, confirm, unknown).
+2. The **tone** of the utterance (e.g., polite, firm, inquisitive, neutral, pushy).
+
+Respond in JSON format with keys "intent" and "tone".
+
+Utterance: "{text}"
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+        content = response.choices[0].message.content
+        
+        # Parse the JSON response
+        return json.loads(content)
+
+    except Exception as e:
+        print(f"LLM tagging failed for: {text[:50]}... \nError: {e}")
+        return {"intent": "unknown", "tone": "neutral"}
+
+def populate_dialogue_graph(documents, driver, nlp):
+    with driver.session() as session:
+        for doc_index, doc in enumerate(documents):
+            utterances = doc["utterances"]  # List of {'speaker': ..., 'text': ...}
+            print(f"\n📄 Starting Document {doc_index+1} | Total Utterances: {len(utterances)}")
+
+            previous_node_id = None
+            speaker_last_node = {}
+
+            for index, utt in enumerate(utterances):
+                text = utt["text"]
+                speaker = utt["speaker"]
+                
+                print(f"\n🔹 Utterance {index+1}/{len(utterances)} | Speaker: {speaker}")
+                print(f"🗨 Text: {text}")
+
+                # --- Step 1: Extract entities using spaCy ---
+                nlp_doc = nlp(text)
+                entities = list(set(ent.text for ent in nlp_doc.ents))
+                print(f"🧠 Entities: {entities}")
+
+                # --- Step 2: Use LLM tagger for tone & intent ---
+                metadata = llm_tagging(text)  
+                tone = metadata["tone"]
+                intent = metadata["intent"]
+                print(f"🎯 Intent: {intent} | 🎭 Tone: {tone}")
+
+                # --- Step 3: Create Utterance node ---
+                result = session.run(
+                    """
+                    CREATE (u:Utterance {
+                        text: $text,
+                        speaker: $speaker,
+                        intent: $intent,
+                        tone: $tone,
+                        entities: $entities,
+                        index: $index
+                    }) RETURN id(u) AS node_id
+                    """,
+                    text=text,
+                    speaker=speaker,
+                    intent=intent,
+                    tone=tone,
+                    entities=entities,
+                    index=index
+                )
+                node_id = result.single()["node_id"]
+                print(f"✅ Created Utterance Node (id={node_id})")
+
+                # --- Step 4: Add NEXT relationship ---
+                if previous_node_id is not None:
+                    session.run("""
+                        MATCH (a), (b)
+                        WHERE id(a) = $a_id AND id(b) = $b_id
+                        MERGE (a)-[:NEXT]->(b)
+                    """, a_id=previous_node_id, b_id=node_id
+                    )
+                    print(f"🔗 Created NEXT relationship from {previous_node_id} → {node_id}")
+
+                # --- Step 5: Add SAME_SPEAKER relationship ---
+                if speaker in speaker_last_node:
+                    session.run("""
+                        MATCH (a), (b)
+                        WHERE id(a) = $a_id AND id(b) = $b_id
+                        MERGE (a)-[:SAME_SPEAKER]->(b)
+                    """, a_id=speaker_last_node[speaker], b_id=node_id
+                    )
+                    print(f"👥 Created SAME_SPEAKER relationship from {speaker_last_node[speaker]} → {node_id}")
+
+                speaker_last_node[speaker] = node_id
+                previous_node_id = node_id
+
+            print(f"✅ Populated {len(utterances)} utterances from document.")
+
 # def LLM_audit_from_rag(retrieved_chunks_1: dict, client):
 #     output_dict = {"Stage 1": []}
 #     overall_result = "Pass"
@@ -2558,6 +2702,15 @@ def main():
                                         if audit_option == "OpenAI (Recommended)":
                                             
                                             # result = LLM_audit(text) old version
+                                            
+                                            # ----------------------GraphRAG---------------------------
+                                            
+                                            utterances = parse_transcript_to_utterances(full_transcript)
+                                            documents = [{"utterances": utterances}]
+                                            print("TRANSCRIPT TO UTTERANCES TEST")
+                                            for u in documents:
+                                                print(u)
+                                            populate_dialogue_graph(documents, driver, nlp)
                                             
                                             # ----------------------VectorRAG--------------------------
                                             # Splitting
