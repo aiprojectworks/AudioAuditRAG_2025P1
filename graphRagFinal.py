@@ -43,6 +43,8 @@ from difflib import SequenceMatcher
 import logging
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 chunker = SemanticSplitterNodeParser(embed_model=embed_model, chunk_size=5)  # adjust chunk size as needed
@@ -173,6 +175,7 @@ Customer: Thanks.
 Telemarketer: Thank you
 """
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+print("OPENAI KEY:", OPENAI_API_KEY)
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 openai.api_key = OPENAI_API_KEY
@@ -905,7 +908,7 @@ def combine_rag_outputs(vector_rag: Dict[str, List[Tuple[int, float, str]]],
 
 
 def print_combined_results(results):
-    print("=" * 25 + " COMBINED RESULTS " + "=" * 25)
+    print("=" * 25 + " COMBINED RETRIEVAL RESULTS " + "=" * 25)
     
     for idx, result in enumerate(results):
         print(f"\n[{idx+1}] Criterion:")
@@ -1020,6 +1023,36 @@ def combined_audit(combined_result: list[dict], model_engine="gpt-4o-mini", stag
 
     return final_output
 
+# =====================STAGE 1 AND 2 COMBINED AUDIT RESULTS=================
+def evaluate_overall_audit(stage1_result: dict, stage2_result: dict) -> dict:
+    """
+    Combines Stage 1 and Stage 2 audit results into an overall evaluation.
+    
+    Parameters:
+        stage1_result (dict): Output from combined_audit() for Stage 1.
+        stage2_result (dict): Output from combined_audit() for Stage 2.
+    
+    Returns:
+        dict: Final evaluation with individual stage details and overall outcome.
+    """
+    # Extract results
+    stage1_overall = stage1_result.get("Overall Result", "Fail")
+    stage2_overall = stage2_result.get("Overall Result", "Fail")
+    
+    # Determine final outcome
+    if stage1_overall == "Pass" and stage2_overall == "Pass":
+        overall = "Pass"
+    else:
+        overall = "Fail"
+
+    return {
+        "Stage 1": stage1_result["Stage 1"],
+        "Stage 1 Overall": stage1_overall,
+        "Stage 2": stage2_result["Stage 2"],
+        "Stage 2 Overall": stage2_overall,
+        "Final Audit Result": overall
+    }
+
 # ========================================Stage 1============================================
 # ========================================Stage 1============================================
 # ========================================Stage 1============================================
@@ -1110,7 +1143,7 @@ combined_result = combine_rag_outputs(vector_rag_dict, graph_rag)
 print_combined_results(combined_result)
 
 # =========================AUDITING========================
-print(combined_audit(combined_result, stage=1))
+stage1_result = combined_audit(combined_result, stage=1)
 
 # ================================Stage 2====================================
 # ================================Stage 2====================================
@@ -1176,10 +1209,11 @@ vector_rag_dict = {
 # Combine and prepare for display
 combined_result = combine_rag_outputs(vector_rag_dict, graph_rag)
 
-print("==================COMBINED RESULTS:===============\n")
-
 print_combined_results(combined_result)
 
-print("==================AUDITING RESULTS:===============\n")
+stage2_result = combined_audit(combined_result, stage=2)
 
-print(combined_audit(combined_result, stage=2))
+# ===========================================================================
+# =====================STAGE 1 AND 2 COMBINED AUDIT RESULTS=================
+final_result = evaluate_overall_audit(stage1_result, stage2_result)
+print(json.dumps(final_result, indent=2))

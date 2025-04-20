@@ -1383,9 +1383,6 @@ def retrieve_relevant_chunks(
     return results
 
 def stage_1_criteria_audit(relevant_chunks_dict: dict[str, list[tuple[int, float, str]]], model_engine="gpt-4o-mini"):
-    import json
-    import re
-    from openai import OpenAI
 
     client = OpenAI()
 
@@ -1810,6 +1807,9 @@ def LLM_audit(dialog):
 # ==================================GRAPH RAG=================================================
 # ==================================GRAPH RAG=================================================
 # ==================================GRAPH RAG=================================================
+
+
+
 
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 chunker = SemanticSplitterNodeParser(embed_model=embed_model, chunk_size=5)  # adjust chunk size as needed
@@ -2496,6 +2496,10 @@ def combine_rag_outputs(vector_rag: Dict[str, List[Tuple[int, float, str]]],
     print("------------------COMBINING OUTPUTS OF VECTORRAG AND GRAPHRAG----------------")
     combined_output = []
     
+    # To ensure that criterion does not contain any newlines and matches between graph and vector jsons
+    def normalize_criterion(text: str) -> str:
+        return " ".join(text.split()).strip()
+    
     for entry in graph_rag:
         criterion = normalize_criterion(entry["criterion"])
         graph_nodes = entry["top_nodes"]
@@ -2640,9 +2644,42 @@ def combined_audit(combined_result: list[dict], model_engine="gpt-4o-mini", stag
 
     return final_output
 
+
+# ================================Combining output of stage 1 and stage 2==================================
+def evaluate_overall_audit(stage1_result: dict, stage2_result: dict) -> dict:
+    """
+    Combines Stage 1 and Stage 2 audit results into an overall evaluation.
+    
+    Parameters:
+        stage1_result (dict): Output from combined_audit() for Stage 1.
+        stage2_result (dict): Output from combined_audit() for Stage 2.
+    
+    Returns:
+        dict: Final evaluation with individual stage details and overall outcome.
+    """
+    # Extract results
+    stage1_overall = stage1_result.get("Overall Result", "Fail")
+    stage2_overall = stage2_result.get("Overall Result", "Fail")
+    
+    # Determine final outcome
+    if stage1_overall == "Pass" and stage2_overall == "Pass":
+        overall = "Pass"
+    else:
+        overall = "Fail"
+
+    return {
+        "Stage 1": stage1_result["Stage 1"],
+        "Stage 1 Overall": stage1_overall,
+        "Stage 2": stage2_result["Stage 2"],
+        "Stage 2 Overall": stage2_overall,
+        "Final Audit Result": overall
+    }
+
 # ==================================END OF GRAPHRAG===========================================
 # ==================================END OF GRAPHRAG===========================================
 # ==================================END OF GRAPHRAG===========================================
+
+
 
 def select_folder():
    root = tk.Tk()
@@ -2764,7 +2801,8 @@ def handle_combined_audit_result_download(data_text, data_csv, file_name_prefix)
             # print(filename)
             if pd.notna(filename):  # Check if filename is not NaN (valid string)
                 # Replace file extensions and create the hyperlink
-                hyperlink = f"./{filename.replace('.mp3', '.txt').replace('.wav', '.txt')}"
+                absolute_path = os.path.abspath(filename.replace('.mp3', '.txt').replace('.wav', '.txt'))
+                hyperlink = f"file:///{absolute_path.replace(os.sep, '/')}"  # Excel wants forward slashes
                 # Add the hyperlink to the 'filename' column in the Excel file (adjust the column index)
                 worksheet.write_url(f"F{index + 2}", hyperlink, string=filename)
 
@@ -2941,6 +2979,21 @@ def main():
                 #     st.rerun()
             else:
                 with st.sidebar:
+                    llm_TF = True
+                    st.title("Retrieval Augemented Generation Selection")
+                    rag_mode = st.radio(
+                        "Choose Retrieval Mode:",
+                        ("VectorRAG Only", "GraphRAG + VectorRAG (Hybrid)"),
+                        help="Choose how transcript chunks are retrieved for audit. Hybrid uses both graph subgraphs and vector similarity.",
+                    )
+                    if rag_mode == "GraphRAG + VectorRAG (Hybrid)":
+                        llmTrueFalse = st.radio(
+                            "Choose Metadata Generation Method:",
+                            ("OpenAI (Recommended)", "Named Entity Recognition"),
+                            help="Named Entity Recognition results in faster but less accurate results. OpenAI is slower but most accurate.",
+                        )
+                        if llmTrueFalse == "Named Entity Recognition":
+                            llm_TF = False
                     st.title("AI Model Selection")
                     transcribe_option = st.radio(
                         "Choose your transcription AI model:",
@@ -3375,6 +3428,144 @@ def main():
                                             result = combine_stage_results(stage_1_result, stage_2_result)
                                             
                                             #-------------------------------------------------------------------------
+                                            
+                                            if rag_mode != "VectorRAG Only":
+                                                print("graphRAG+vectorRAG is chosen")
+                                                print("llmTF: ", llm_TF)
+                                                
+                                                # ========================================Stage 1============================================
+                                                # ========================================Stage 1============================================
+                                                # ========================================Stage 1============================================
+
+                                                # Splitting sentences and chunking
+                                                raw_chunks = preprocess_transcript(full_transcript)
+                                                print_preprocessed_transcript(raw_chunks)
+
+                                                # Metadata construction for each sentence
+                                                enriched_nodes = enrich_chunks(raw_chunks, llm_TF)
+                                                print("\n=============== Enriched Transcript Nodes ===============")
+                                                print_enriched_nodes(enriched_nodes)
+
+                                                # Node & Edge Construction
+                                                nodes, edges = construct_graph(enriched_nodes, embed_model, min_similarity=0.50)
+
+                                                # Knowledge Graph Construction
+                                                G = build_graph(nodes, edges)
+                                                draw_graph(G)
+
+                                                stage_1_criteria = [
+                                                    "Did the telemarketer introduced themselves by stating their name? (Usually followed by 'calling from')",
+                                                    "Did the telemarketer state that they are calling from one of these ['IPP', 'IPPFA', 'IPP Financial Advisors'] without mentioning on behalf of any other insurers?(accept anyone one of the 3 name given)",
+                                                    "Did the customer asked how did the telemarketer obtained their contact details? If they asked, did telemarketer mentioned who gave the customer's details to him? (Not Applicable if customer didn't)",
+                                                    "Did the telemarketer specify the types of financial services offered?",
+                                                    "Did the telemarketer offered to set up a meeting or zoom session with the consultant for the customer? (Try to specify the date and location if possible)",
+                                                    "Did the telemarketer stated that products have high returns, guaranteed returns, or capital guarantee? (Fail if they did, Pass if they didn't)",
+                                                    "Was the telemarketer polite and professional in their conduct?"
+                                                ]
+
+                                                # Run for all Stage 1 criteria
+                                                stage1_subgraphs = []
+
+                                                for criterion in stage_1_criteria:
+                                                    GraphRAGresult1 = retrieve_subgraph_for_criterion_fixed(criterion, nodes, edges, embed_model, min_score=0)
+                                                    stage1_subgraphs.append(GraphRAGresult1)
+
+                                                # Example: print top node IDs for first criterion
+                                                print("\n✅ Top Node IDs for First Criterion:")
+                                                for node in stage1_subgraphs[0]["top_nodes"]:
+                                                    print(f"- {node['id']}")
+
+                                                print(stage1_subgraphs)
+
+                                                # CLEANING VECTOR RAG OUTPUT AND TURNING INTO DICTIONARY
+
+                                                graph_rag = stage1_subgraphs
+                                                vector_rag_dict = retrieved_chunks_1
+                                                # # Step 1: Replace np.int64(x) with just x using regex
+                                                # cleaned = re.sub(r'np\.int64\((\d+)\)', r'\1', vector_rag)
+                                                # # Step 3: Escape line breaks inside string literals
+                                                # cleaned = re.sub(r'(?<!\\)\n', r'\\n', cleaned)
+                                                # # Step 3: Strip leading newlines/spaces
+                                                # cleaned = cleaned.strip()
+                                                # print("CLEANED:", cleaned)
+                                                # # Step 2: Use literal_eval (safe version of eval) to convert to dict
+                                                # vector_rag_dict = ast.literal_eval(cleaned)
+                                                print("TYPEE:", type(vector_rag_dict))
+
+                                                # vector_rag_dict = {
+                                                #     normalize_criterion(k): v for k, v in vector_rag_dict.items()
+                                                # }
+
+                                                # ====================Combine and prepare for display========================
+                                                combined_result = combine_rag_outputs(vector_rag_dict, graph_rag)
+
+                                                # =========================RESULTS=========================
+                                                print_combined_results(combined_result)
+
+                                                # =========================AUDITING========================
+                                                stage1_result = combined_audit(combined_result, stage=1)
+                                                
+                                                # ================================Stage 2====================================
+                                                # ================================Stage 2====================================
+                                                # ================================Stage 2====================================
+
+                                                print("STAGE 2 STARTING PROCESSING")
+
+                                                stage_2_criteria = [
+                                                    "Did the telemarketer ask if the customer is keen to explore how they can benefit from IPPFA's services?",
+                                                    "Did the customer show uncertain response to the offer of the product and services? If Yes, Check did the telemarketer propose meeting or zoom session with company's consultant?",
+                                                    "Did the telemarketer pressure the customer for the following activities (product introduction, setting an appointment)? (Fail if they did, Pass if they didn't)"
+                                                ]
+
+                                                stage2_subgraphs = []
+
+                                                for criterion in stage_2_criteria:
+                                                    GraphRAGresult2 = retrieve_subgraph_for_criterion_fixed(criterion, nodes, edges, embed_model, min_score=0)
+                                                    stage2_subgraphs.append(GraphRAGresult2)
+
+                                                print(stage2_subgraphs)
+
+                                                print("------------------COMBINING OUTPUTS OF STAGE 2 VECTORRAG AND GRAPHRAG----------------")
+
+                                                graph_rag = stage2_subgraphs
+                                                vector_rag_dict2 = retrieved_chunks_2
+                                                # vector_rag_dict = json.loads(vector_rag)
+                                                # # Step 1: Replace np.int64(x) with just x using regex
+                                                # cleaned = re.sub(r'np\.int64\((\d+)\)', r'\1', vector_rag)
+                                                # # Step 3: Escape line breaks inside string literals
+                                                # cleaned = re.sub(r'(?<!\\)\n', r'\\n', cleaned)
+                                                # # Step 3: Strip leading newlines/spaces
+                                                # cleaned = cleaned.strip()
+                                                # print("VECTOR_RAG_DICT:", vector_rag_dict)
+                                                # print("TYPE:", type(vector_rag_dict))
+                                                # print("CLEANED:", cleaned)
+
+                                                # # To ensure that criterion does not contain any newlines and matches between graph and vector jsons
+                                                # def normalize_criterion(text: str) -> str:
+                                                #     return " ".join(text.split()).strip()
+
+                                                # vector_rag_dict = {
+                                                #     normalize_criterion(k): v for k, v in vector_rag_dict.items()
+                                                # }
+
+                                                # Combine and prepare for display
+                                                combined_result = combine_rag_outputs(vector_rag_dict2, graph_rag)
+
+                                                print_combined_results(combined_result)
+
+                                                stage2_result = combined_audit(combined_result, stage=2)
+
+                                                # ===========================================================================
+                                                # =====================STAGE 1 AND 2 COMBINED AUDIT RESULTS=================
+                                                final_result = evaluate_overall_audit(stage1_result, stage2_result)
+                                                print(json.dumps(final_result, indent=2))
+                                                
+                                            else:
+                                                print("Vector ONLY is chosen")
+                                                
+                                            # ================================================================================================
+                                            # ================================================================================================
+                                            # ================================================================================================
                                             
                                             if result["Overall Result"] == "Fail":
                                                 status = "<span style='color: red;'> (FAIL)</span>"
